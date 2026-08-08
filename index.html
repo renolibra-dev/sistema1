@@ -3,56 +3,205 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ERP Contable - Balances</title>
+    <title>ERP Contable - Escáner IA</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans p-4">
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
 
-    <!-- LOGIN Y DIAGNÓSTICO -->
-    <div id="login-view" class="max-w-xl mx-auto w-full my-auto space-y-4">
-        <div class="bg-slate-800 p-8 rounded-xl border border-slate-700 shadow-xl">
-            <h1 class="text-2xl font-bold text-emerald-400 text-center mb-1">ERP Contable</h1>
-            <p class="text-xs text-slate-400 text-center mb-6">Conexión Directa API (Sin CDN)</p>
-            
+    <!-- PANTALLA DE LOGIN -->
+    <div id="login-view" class="flex-1 flex items-center justify-center p-4">
+        <div class="bg-slate-800 p-8 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md">
+            <h1 class="text-2xl font-bold text-emerald-400 text-center mb-6">ERP Contable</h1>
             <div class="space-y-4">
                 <div>
                     <label class="block text-sm text-slate-400 mb-1">Correo Electrónico</label>
-                    <input type="email" id="email" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" value="renolibra@renolibra.com">
+                    <input type="email" id="email" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white focus:outline-none focus:border-emerald-500" value="renolibra@renolibra.com">
                 </div>
                 <div>
                     <label class="block text-sm text-slate-400 mb-1">Contraseña</label>
-                    <input type="password" id="password" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" placeholder="••••••••">
+                    <input type="password" id="password" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white focus:outline-none focus:border-emerald-500" placeholder="••••••••">
                 </div>
-                <button type="button" id="btn-submit" class="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-2 rounded transition cursor-pointer">
+                <div id="login-error" class="bg-red-500/10 border border-red-500/50 text-red-400 text-xs p-3 rounded text-center hidden"></div>
+                <button type="button" id="btn-submit" class="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-2.5 rounded transition cursor-pointer text-white">
                     Iniciar Sesión
                 </button>
             </div>
         </div>
-
-        <!-- CONSOLA DE DIAGNÓSTICO -->
-        <div class="bg-black/90 border border-slate-700 rounded-lg p-4 font-mono text-xs text-green-400 h-48 overflow-y-auto space-y-1" id="console-log">
-        </div>
     </div>
 
-    <!-- PANEL PRINCIPAL (DASHBOARD) -->
-    <div id="dashboard-view" class="hidden flex-1 flex flex-col max-w-5xl mx-auto w-full my-auto">
-        <header class="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center rounded-t-xl">
+    <!-- PANEL PRINCIPAL -->
+    <div id="dashboard-view" class="hidden flex-1 flex flex-col">
+        <!-- Encabezado -->
+        <header class="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center">
             <div class="flex items-center space-x-3">
                 <span class="text-xl font-bold text-emerald-400">ERP Contable</span>
                 <span id="user-role-badge" class="px-2 py-0.5 text-xs rounded font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">ADMIN</span>
             </div>
             <div class="flex items-center space-x-4">
+                <button onclick="configurarApiKey()" class="text-xs text-slate-400 hover:text-emerald-400 border border-slate-700 rounded px-2 py-1 transition">🔑 Configurar Key Gemini</button>
                 <span id="user-email" class="text-sm text-slate-400"></span>
-                <button id="logout-btn" class="bg-red-600/80 hover:bg-red-600 text-xs px-3 py-1.5 rounded cursor-pointer">Cerrar Sesión</button>
+                <button id="logout-btn" class="bg-red-600/80 hover:bg-red-600 text-xs px-3 py-1.5 rounded cursor-pointer transition">Cerrar Sesión</button>
             </div>
         </header>
 
-        <div class="flex-1 bg-slate-800/40 border border-slate-700 p-6 rounded-b-xl space-y-4">
-            <h2 class="text-2xl font-bold mb-2 text-emerald-400">¡Conexión Exitosa con Supabase!</h2>
-            <p class="text-slate-300">Has accedido correctamente al sistema de contabilidad.</p>
-            <div class="p-4 bg-emerald-950/40 border border-emerald-500/30 rounded text-emerald-300 text-sm">
-                <strong>Siguiente paso:</strong> Crear la base de datos para el Plan de Cuentas y los Asientos Contables.
-            </div>
+        <!-- Navegación y Secciones -->
+        <div class="flex-1 flex flex-col md:flex-row">
+            <!-- Sidebar -->
+            <aside class="w-full md:w-64 bg-slate-800/50 border-r border-slate-700 p-4 space-y-2">
+                <button onclick="switchTab('tab-scanner')" id="btn-tab-scanner" class="tab-btn w-full text-left px-3 py-2 rounded bg-slate-700 text-emerald-400 font-medium">Cargar Factura (IA)</button>
+                <button onclick="switchTab('tab-impuestos')" id="btn-tab-impuestos" class="tab-btn w-full text-left px-3 py-2 rounded hover:bg-slate-700 text-slate-300 transition">Liquidación Impuestos</button>
+                <button onclick="switchTab('tab-comprobantes')" id="btn-tab-comprobantes" class="tab-btn w-full text-left px-3 py-2 rounded hover:bg-slate-700 text-slate-300 transition">Histórico Comprobantes</button>
+            </aside>
+
+            <!-- Contenido Principal -->
+            <main class="flex-1 p-6 overflow-y-auto">
+                
+                <!-- SECCIÓN 1: ESCÁNER DE FACTURAS -->
+                <div id="tab-scanner" class="tab-content space-y-6">
+                    <h2 class="text-xl font-bold text-emerald-400">Cargar Comprobante con Inteligencia Artificial</h2>
+                    
+                    <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                        <div class="border-2 border-dashed border-slate-600 rounded-lg p-6 text-center hover:border-emerald-500 transition cursor-pointer relative" id="drop-zone">
+                            <input type="file" id="file-input" accept="image/*,application/pdf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                            <p class="text-slate-300 font-medium mb-1">Arrastra tu factura aquí o haz clic para seleccionar</p>
+                            <p class="text-slate-500 text-xs">Formatos soportados: JPG, PNG, PDF</p>
+                        </div>
+                        <div id="ai-loading" class="hidden mt-4 text-center text-emerald-400 font-mono text-sm animate-pulse">
+                            ⚡ Analizando factura con Gemini AI (Extrayendo montos, impuestos y tipo de cambio)...
+                        </div>
+                    </div>
+
+                    <!-- Formulario de Confirmación precompletado por IA -->
+                    <form id="invoice-form" class="bg-slate-800 p-6 rounded-xl border border-slate-700 space-y-4">
+                        <h3 class="text-lg font-semibold text-slate-200 border-b border-slate-700 pb-2">Datos Extraídos del Comprobante</h3>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Operación</label>
+                                <select id="tipo_operacion" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">
+                                    <option value="compra">Compra (Proveedor)</option>
+                                    <option value="venta">Venta (Cliente)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Tipo Comprobante</label>
+                                <input type="text" id="tipo_comprobante" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white" placeholder="Factura A">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Número de Comprobante</label>
+                                <input type="text" id="numero_comprobante" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Fecha Emisión</label>
+                                <input type="date" id="fecha_emision" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Razón Social Contraparte</label>
+                                <input type="text" id="emisor_receptor_nombre" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Identificación Fiscal (CUIT/NIF)</label>
+                                <input type="text" id="emisor_receptor_identificacion" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">
+                            </div>
+                        </div>
+
+                        <!-- Sección Moneda y TC -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-900/50 p-3 rounded border border-slate-700">
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Moneda Original</label>
+                                <select id="moneda" onchange="calcularConversion()" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">
+                                    <option value="ARS">ARS (Pesos)</option>
+                                    <option value="USD">USD (Dólares)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Tipo de Cambio Oficial (TC)</label>
+                                <input type="number" step="0.0001" id="tipo_cambio" value="1.0000" onchange="calcularConversion()" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">
+                            </div>
+                        </div>
+
+                        <!-- Desglose Impositivo -->
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Neto Gravado</label>
+                                <input type="number" step="0.01" id="neto_gravado" onchange="calcularConversion()" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white" value="0.00">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Monto IVA</label>
+                                <input type="number" step="0.01" id="iva_monto" onchange="calcularConversion()" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white" value="0.00">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Exento / No Grav.</label>
+                                <input type="number" step="0.01" id="no_gravado_exento" onchange="calcularConversion()" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white" value="0.00">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Percep. / Reten.</label>
+                                <input type="number" step="0.01" id="percepciones_retenciones" onchange="calcularConversion()" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white" value="0.00">
+                            </div>
+                            <div class="col-span-2 md:col-span-1">
+                                <label class="block text-xs text-slate-400 mb-1">Total Moneda Orig.</label>
+                                <input type="number" step="0.01" id="monto_total_origen" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white font-bold" value="0.00" readonly>
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded flex justify-between items-center text-sm">
+                            <span class="text-slate-300">Equivalente Total en Pesos (ARS) para Liquidación:</span>
+                            <span id="monto_total_ars_display" class="text-lg font-bold text-emerald-400">$ 0.00 ARS</span>
+                        </div>
+
+                        <button type="button" onclick="guardarComprobante()" class="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-2.5 rounded transition text-white">
+                            Confirmar y Registrar en Contabilidad
+                        </button>
+                    </form>
+                </div>
+
+                <!-- SECCIÓN 2: LIQUIDACIÓN DE IMPUESTOS -->
+                <div id="tab-impuestos" class="tab-content hidden space-y-6">
+                    <h2 class="text-xl font-bold text-emerald-400">Posición Fiscal e Impuestos (Vista Contador)</h2>
+                    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-900 text-slate-400 uppercase text-xs">
+                                <tr>
+                                    <th class="p-3">Período Fiscal</th>
+                                    <th class="p-3">IVA Débito (Ventas)</th>
+                                    <th class="p-3">IVA Crédito (Compras)</th>
+                                    <th class="p-3">Percepciones a Favor</th>
+                                    <th class="p-3">Saldo Estimado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-impuestos-body" class="divide-y divide-slate-700">
+                                <tr><td colspan="5" class="p-4 text-center text-slate-500">Cargando datos...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN 3: HISTÓRICO DE COMPROBANTES -->
+                <div id="tab-comprobantes" class="tab-content hidden space-y-6">
+                    <h2 class="text-xl font-bold text-emerald-400">Histórico de Comprobantes Cargados</h2>
+                    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-900 text-slate-400 uppercase text-xs">
+                                <tr>
+                                    <th class="p-3">Fecha</th>
+                                    <th class="p-3">Tipo</th>
+                                    <th class="p-3">Comprobante</th>
+                                    <th class="p-3">Contraparte</th>
+                                    <th class="p-3">Moneda</th>
+                                    <th class="p-3 text-right">Total (ARS)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-comprobantes-body" class="divide-y divide-slate-700">
+                                <tr><td colspan="6" class="p-4 text-center text-slate-500">Cargando datos...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </main>
         </div>
     </div>
 
@@ -60,72 +209,48 @@
         const SUPABASE_URL = 'https://dkhvskyuwrinrlfyjahy.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRraHZza3l1d3JpbnJsZnlqYWh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMTk5MDIsImV4cCI6MjEwMTc5NTkwMn0.W7hpE2AqADgxZnMd2GygUMVYMIsV5kEzr8YxpQbMMzI';
 
-        const logger = document.getElementById('console-log');
-        function log(msg, type = 'info') {
-            const div = document.createElement('div');
-            const time = new Date().toLocaleTimeString();
-            if(type === 'error') div.className = 'text-red-400 font-bold';
-            if(type === 'success') div.className = 'text-emerald-300 font-bold';
-            div.textContent = `[${time}] ${msg}`;
-            logger.appendChild(div);
-            logger.scrollTop = logger.scrollHeight;
-        }
-
-        log('> Sistema JavaScript inicializado.');
-        log('> Listo para conectar con Supabase.');
-
         const loginView = document.getElementById('login-view');
         const dashboardView = document.getElementById('dashboard-view');
         const btnSubmit = document.getElementById('btn-submit');
+        const loginError = document.getElementById('login-error');
         const userEmailSpan = document.getElementById('user-email');
         const logoutBtn = document.getElementById('logout-btn');
 
-        // Verificar si hay token guardado
+        // Sesión
         const savedToken = localStorage.getItem('sb_access_token');
         const savedEmail = localStorage.getItem('sb_user_email');
-        if (savedToken && savedEmail) {
-            log('> Sesión guardada encontrada para: ' + savedEmail, 'success');
-            showDashboard(savedEmail);
-        }
+        if (savedToken && savedEmail) showDashboard(savedEmail);
 
         function showDashboard(email) {
             loginView.classList.add('hidden');
             dashboardView.classList.remove('hidden');
             userEmailSpan.textContent = email;
+            cargarHistórico();
+            cargarImpuestos();
         }
 
         async function ejecutarLogin() {
+            loginError.classList.add('hidden');
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
+            if (!password) return mostrarError('Ingresa la contraseña');
 
-            if (!password) {
-                log('> Por favor ingrese la contraseña.', 'error');
-                return;
-            }
-
-            log('> Contactando a Supabase Auth API...');
             btnSubmit.disabled = true;
-            btnSubmit.textContent = 'Autenticando...';
+            btnSubmit.textContent = 'Iniciando...';
 
             try {
-                const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+                const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
                     method: 'POST',
-                    headers: {
-                        'apikey': SUPABASE_ANON_KEY,
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password })
                 });
-
-                const data = await response.json();
-
+                const data = await res.json();
                 btnSubmit.disabled = false;
                 btnSubmit.textContent = 'Iniciar Sesión';
 
-                if (!response.ok) {
-                    log('> ERROR DE LOGIN: ' + (data.error_description || data.msg || data.message || 'Credenciales inválidas'), 'error');
+                if (!res.ok) {
+                    mostrarError(data.error_description || 'Credenciales inválidas');
                 } else {
-                    log('> ¡LOGIN EXITOSO!', 'success');
                     localStorage.setItem('sb_access_token', data.access_token);
                     localStorage.setItem('sb_user_email', data.user.email);
                     showDashboard(data.user.email);
@@ -133,20 +258,254 @@
             } catch (err) {
                 btnSubmit.disabled = false;
                 btnSubmit.textContent = 'Iniciar Sesión';
-                log('> ERROR DE RED: ' + err.message, 'error');
+                mostrarError('Error de red');
             }
         }
 
+        function mostrarError(msg) {
+            loginError.textContent = msg;
+            loginError.classList.remove('hidden');
+        }
+
         btnSubmit.addEventListener('click', ejecutarLogin);
+        document.getElementById('password').addEventListener('keypress', (e) => { if (e.key === 'Enter') ejecutarLogin(); });
+        logoutBtn.addEventListener('click', () => { localStorage.clear(); location.reload(); });
 
-        document.getElementById('password').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') ejecutarLogin();
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('bg-slate-700', 'text-emerald-400');
+                el.classList.add('text-slate-300');
+            });
+            document.getElementById(tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById('btn-' + tabId);
+            activeBtn.classList.add('bg-slate-700', 'text-emerald-400');
+        }
+
+        // --- GESTIÓN DE GEMINI API KEY EN LOCALSTORAGE ---
+        function obtenerApiKeyGemini() {
+            let key = localStorage.getItem('gemini_api_key');
+            if (!key) {
+                key = prompt('Por favor, ingresa tu API Key de Google Gemini para habilitar la lectura automática:');
+                if (key && key.trim() !== '') {
+                    localStorage.setItem('gemini_api_key', key.trim());
+                }
+            }
+            return key ? key.trim() : null;
+        }
+
+        function configurarApiKey() {
+            const actual = localStorage.getItem('gemini_api_key') || '';
+            const nuevaKey = prompt('Actualiza tu API Key de Gemini:', actual);
+            if (nuevaKey !== null) {
+                localStorage.setItem('gemini_api_key', nuevaKey.trim());
+                alert('API Key actualizada correctamente.');
+            }
+        }
+
+        // --- INTEGRACIÓN ESCÁNER GEMINI IA ---
+        const fileInput = document.getElementById('file-input');
+        const aiLoading = document.getElementById('ai-loading');
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const apiKey = obtenerApiKeyGemini();
+            if (!apiKey) {
+                alert('Se requiere una API Key de Gemini para procesar comprobantes.');
+                return;
+            }
+
+            aiLoading.classList.remove('hidden');
+            const base64 = await fileToBase64(file);
+            const mimeType = file.type;
+
+            const promptText = `Analiza la imagen o documento de esta factura y extrae un JSON estricto sin markdown con el siguiente formato:
+            {
+                "tipo_operacion": "compra" o "venta",
+                "tipo_comprobante": "Factura A", "Factura B", "Factura C" o similar,
+                "numero_comprobante": "string numero",
+                "fecha_emision": "YYYY-MM-DD",
+                "emisor_receptor_nombre": "Razón social del emisor o cliente",
+                "emisor_receptor_identificacion": "CUIT, RUT o ID fiscal",
+                "moneda": "ARS" o "USD",
+                "tipo_cambio": número decimal (extrae el TC impreso si es USD, si no figura usa 1.0),
+                "neto_gravado": número,
+                "iva_monto": número,
+                "no_gravado_exento": número,
+                "percepciones_retenciones": número,
+                "monto_total": número
+            }`;
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { inline_data: { mime_type: mimeType, data: base64 } },
+                                { text: promptText }
+                            ]
+                        }],
+                        generationConfig: { response_mime_type: "application/json" }
+                    })
+                });
+
+                const resData = await response.json();
+                aiLoading.classList.add('hidden');
+
+                if (resData.candidates && resData.candidates[0].content.parts[0].text) {
+                    const parsed = JSON.parse(resData.candidates[0].content.parts[0].text);
+                    
+                    document.getElementById('tipo_operacion').value = parsed.tipo_operacion || 'compra';
+                    document.getElementById('tipo_comprobante').value = parsed.tipo_comprobante || 'Factura A';
+                    document.getElementById('numero_comprobante').value = parsed.numero_comprobante || '';
+                    document.getElementById('fecha_emision').value = parsed.fecha_emision || new Date().toISOString().split('T')[0];
+                    document.getElementById('emisor_receptor_nombre').value = parsed.emisor_receptor_nombre || '';
+                    document.getElementById('emisor_receptor_identificacion').value = parsed.emisor_receptor_identificacion || '';
+                    document.getElementById('moneda').value = parsed.moneda || 'ARS';
+                    document.getElementById('tipo_cambio').value = parsed.tipo_cambio || 1.0;
+                    
+                    document.getElementById('neto_gravado').value = parsed.neto_gravado || 0;
+                    document.getElementById('iva_monto').value = parsed.iva_monto || 0;
+                    document.getElementById('no_gravado_exento').value = parsed.no_gravado_exento || 0;
+                    document.getElementById('percepciones_retenciones').value = parsed.percepciones_retenciones || 0;
+                    
+                    calcularConversion();
+                } else if (resData.error) {
+                    alert('Error de API Gemini: ' + resData.error.message);
+                }
+            } catch (err) {
+                aiLoading.classList.add('hidden');
+                alert('Error al procesar la factura con IA: ' + err.message);
+            }
         });
 
-        logoutBtn.addEventListener('click', () => {
-            localStorage.clear();
-            location.reload();
-        });
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        function calcularConversion() {
+            const neto = parseFloat(document.getElementById('neto_gravado').value) || 0;
+            const iva = parseFloat(document.getElementById('iva_monto').value) || 0;
+            const exento = parseFloat(document.getElementById('no_gravado_exento').value) || 0;
+            const percep = parseFloat(document.getElementById('percepciones_retenciones').value) || 0;
+            const tc = parseFloat(document.getElementById('tipo_cambio').value) || 1.0;
+
+            const totalOrigen = neto + iva + exento + percep;
+            document.getElementById('monto_total_origen').value = totalOrigen.toFixed(2);
+
+            const totalARS = totalOrigen * tc;
+            document.getElementById('monto_total_ars_display').textContent = `$ ${totalARS.toLocaleString('es-AR', {minimumFractionDigits: 2})} ARS`;
+        }
+
+        // --- GUARDAR COMPROBANTE EN SUPABASE ---
+        async function guardarComprobante() {
+            const token = localStorage.getItem('sb_access_token');
+            const tc = parseFloat(document.getElementById('tipo_cambio').value) || 1.0;
+            
+            const payload = {
+                tipo_operacion: document.getElementById('tipo_operacion').value,
+                tipo_comprobante: document.getElementById('tipo_comprobante').value,
+                numero_comprobante: document.getElementById('numero_comprobante').value,
+                fecha_emision: document.getElementById('fecha_emision').value,
+                emisor_receptor_nombre: document.getElementById('emisor_receptor_nombre').value,
+                emisor_receptor_identificacion: document.getElementById('emisor_receptor_identificacion').value,
+                moneda: document.getElementById('moneda').value,
+                tipo_cambio: tc,
+                neto_gravado: (parseFloat(document.getElementById('neto_gravado').value) || 0) * tc,
+                iva_monto: (parseFloat(document.getElementById('iva_monto').value) || 0) * tc,
+                no_gravado_exento: (parseFloat(document.getElementById('no_gravado_exento').value) || 0) * tc,
+                percepciones_retenciones: (parseFloat(document.getElementById('percepciones_retenciones').value) || 0) * tc,
+                monto_total: (parseFloat(document.getElementById('monto_total_origen').value) || 0) * tc,
+                monto_total_origen: parseFloat(document.getElementById('monto_total_origen').value) || 0
+            };
+
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/comprobantes`, {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=minimal'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                alert('¡Comprobante guardado con éxito!');
+                document.getElementById('invoice-form').reset();
+                calcularConversion();
+                cargarHistórico();
+                cargarImpuestos();
+            } else {
+                alert('Error al guardar el comprobante en la base de datos.');
+            }
+        }
+
+        // --- VISTAS DEL CONTADOR ---
+        async function cargarHistórico() {
+            const token = localStorage.getItem('sb_access_token');
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/comprobantes?select=*&order=fecha_emision.desc`, {
+                headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            const tbody = document.getElementById('tabla-comprobantes-body');
+            tbody.innerHTML = '';
+
+            if (data && data.length > 0) {
+                data.forEach(c => {
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-slate-800/80">
+                            <td class="p-3">${c.fecha_emision}</td>
+                            <td class="p-3"><span class="px-2 py-0.5 text-xs rounded ${c.tipo_operacion === 'compra' ? 'bg-blue-500/20 text-blue-300' : 'bg-emerald-500/20 text-emerald-300'}">${c.tipo_operacion.toUpperCase()}</span></td>
+                            <td class="p-3">${c.tipo_comprobante} ${c.numero_comprobante}</td>
+                            <td class="p-3">${c.emisor_receptor_nombre}</td>
+                            <td class="p-3">${c.moneda}</td>
+                            <td class="p-3 text-right font-bold text-emerald-400">$ ${parseFloat(c.monto_total).toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-500">No hay comprobantes cargados.</td></tr>';
+            }
+        }
+
+        async function cargarImpuestos() {
+            const token = localStorage.getItem('sb_access_token');
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/vista_posicion_iva?select=*`, {
+                headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            const tbody = document.getElementById('tabla-impuestos-body');
+            tbody.innerHTML = '';
+
+            if (data && data.length > 0) {
+                data.forEach(i => {
+                    const saldo = parseFloat(i.saldo_a_favor_contribuyente);
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-slate-800/80">
+                            <td class="p-3 font-bold text-slate-200">${i.periodo_fiscal}</td>
+                            <td class="p-3 text-red-400">$ ${parseFloat(i.iva_debito_fiscal).toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+                            <td class="p-3 text-emerald-400">$ ${parseFloat(i.iva_credito_fiscal).toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+                            <td class="p-3 text-blue-400">$ ${parseFloat(i.percepciones_a_favor).toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+                            <td class="p-3 font-bold ${saldo >= 0 ? 'text-emerald-400' : 'text-red-400'}">
+                                ${saldo >= 0 ? 'A Favor: $' : 'A Pagar: $'} ${Math.abs(saldo).toLocaleString('es-AR', {minimumFractionDigits:2})}
+                            </td>
+                        </tr>
+                    `;
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500">Sin datos de impuestos.</td></tr>';
+            }
+        }
     </script>
 </body>
 </html>
