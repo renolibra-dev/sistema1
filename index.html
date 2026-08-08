@@ -15,27 +15,29 @@
             <h1 class="text-2xl font-bold text-emerald-400 text-center mb-1">ERP Contable</h1>
             <p class="text-xs text-slate-400 text-center mb-6">Modo Diagnóstico Activo</p>
             
-            <form id="login-form" class="space-y-4">
+            <div class="space-y-4">
                 <div>
                     <label class="block text-sm text-slate-400 mb-1">Correo Electrónico</label>
-                    <input type="email" id="email" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" value="renolibra@renolibra.com">
+                    <input type="email" id="email" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" value="renolibra@renolibra.com">
                 </div>
                 <div>
                     <label class="block text-sm text-slate-400 mb-1">Contraseña</label>
-                    <input type="password" id="password" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white">
+                    <input type="password" id="password" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" placeholder="••••••••">
                 </div>
-                <button type="submit" id="btn-submit" class="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-2 rounded transition">Probar Conexión e Iniciar Sesión</button>
-            </form>
+                <button type="button" id="btn-submit" class="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-2 rounded transition cursor-pointer">
+                    Probar Conexión e Iniciar Sesión
+                </button>
+            </div>
         </div>
 
         <!-- CORTAFUEGOS / REGISTRO EN VIVO -->
         <div class="bg-black/80 border border-slate-700 rounded-lg p-4 font-mono text-xs text-green-400 h-48 overflow-y-auto space-y-1" id="console-log">
-            <div>> Sistema listo. Ingrese contraseña y presione el botón...</div>
+            <div>> Sistema cargando...</div>
         </div>
     </div>
 
     <!-- PANEL PRINCIPAL (DASHBOARD) -->
-    <div id="dashboard-view" class="hidden flex-1 flex flex-col">
+    <div id="dashboard-view" class="hidden flex-1 flex flex-col max-w-5xl mx-auto w-full my-auto">
         <header class="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center rounded-t-xl">
             <div class="flex items-center space-x-3">
                 <span class="text-xl font-bold text-emerald-400">ERP Contable</span>
@@ -43,7 +45,7 @@
             </div>
             <div class="flex items-center space-x-4">
                 <span id="user-email" class="text-sm text-slate-400"></span>
-                <button id="logout-btn" class="bg-red-600/80 hover:bg-red-600 text-xs px-3 py-1.5 rounded">Cerrar Sesión</button>
+                <button id="logout-btn" class="bg-red-600/80 hover:bg-red-600 text-xs px-3 py-1.5 rounded cursor-pointer">Cerrar Sesión</button>
             </div>
         </header>
 
@@ -64,36 +66,51 @@
         function log(msg, type = 'info') {
             const div = document.createElement('div');
             const time = new Date().toLocaleTimeString();
-            if(type === 'error') div.className = 'text-red-400';
+            if(type === 'error') div.className = 'text-red-400 font-bold';
             if(type === 'success') div.className = 'text-emerald-300 font-bold';
             div.textContent = `[${time}] ${msg}`;
             logger.appendChild(div);
             logger.scrollTop = logger.scrollHeight;
         }
 
+        // Capturar cualquier error no controlado
+        window.onerror = function(msg, url, line) {
+            log(`> ERROR NO CONTROLADO: ${msg} (Línea ${line})`, 'error');
+            return false;
+        };
+
+        window.addEventListener('unhandledrejection', function(event) {
+            log(`> ERROR DE PROMESA: ${event.reason.message || event.reason}`, 'error');
+        });
+
         let supabase;
         try {
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            log('> Cliente Supabase inicializado correctamente.');
+            if (window.supabase) {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                log('> Cliente Supabase inicializado correctamente.');
+            } else {
+                log('> ERROR: La librería de Supabase no cargó desde la red.', 'error');
+            }
         } catch(e) {
-            log('> ERROR al inicializar Supabase: ' + e.message, 'error');
+            log('> ERROR al crear cliente Supabase: ' + e.message, 'error');
         }
 
         const loginView = document.getElementById('login-view');
         const dashboardView = document.getElementById('dashboard-view');
-        const loginForm = document.getElementById('login-form');
+        const btnSubmit = document.getElementById('btn-submit');
         const userEmailSpan = document.getElementById('user-email');
         const logoutBtn = document.getElementById('logout-btn');
 
         async function checkSession() {
-            log('> Verificando si existe sesión previa...');
+            if (!supabase) return;
+            log('> Verificando si existe sesión activa...');
             const { data: { session }, error } = await supabase.auth.getSession();
-            if (error) log('> Error verificando sesión: ' + error.message, 'error');
+            if (error) log('> Error al consultar sesión: ' + error.message, 'error');
             if (session) {
-                log('> Sesión previa detectada: ' + session.user.email, 'success');
+                log('> Sesión detectada para: ' + session.user.email, 'success');
                 showDashboard(session.user);
             } else {
-                log('> Sin sesión activa.');
+                log('> Sin sesión activa. Ingrese clave y presione el botón.');
             }
         }
 
@@ -103,26 +120,46 @@
             userEmailSpan.textContent = user.email;
         }
 
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            log('> Enviando solicitud de autenticación a Supabase...');
+        async function ejecutarLogin() {
+            if (!supabase) {
+                log('> ERROR: Supabase no está listo.', 'error');
+                return;
+            }
 
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
 
+            if (!password) {
+                log('> Por favor ingrese la contraseña.', 'error');
+                return;
+            }
+
+            log('> Enviando credenciales a Supabase...');
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = 'Verificando...';
+
             const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = 'Probar Conexión e Iniciar Sesión';
 
             if (error) {
                 log('> ERROR DE AUTENTICACIÓN: ' + error.message, 'error');
-                log('> Sugerencia: Revisa si el usuario existe en Supabase -> Authentication -> Users con esta contraseña.', 'error');
             } else {
                 log('> ¡Autenticación EXITOSA!', 'success');
                 showDashboard(data.user);
             }
+        }
+
+        btnSubmit.addEventListener('click', ejecutarLogin);
+
+        // Permitir presionar Enter en la contraseña
+        document.getElementById('password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') ejecutarLogin();
         });
 
         logoutBtn.addEventListener('click', async () => {
-            await supabase.auth.signOut();
+            if (supabase) await supabase.auth.signOut();
             location.reload();
         });
 
