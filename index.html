@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ERP Contable - Balances</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans p-4">
 
@@ -13,7 +12,7 @@
     <div id="login-view" class="max-w-xl mx-auto w-full my-auto space-y-4">
         <div class="bg-slate-800 p-8 rounded-xl border border-slate-700 shadow-xl">
             <h1 class="text-2xl font-bold text-emerald-400 text-center mb-1">ERP Contable</h1>
-            <p class="text-xs text-slate-400 text-center mb-6">Modo Diagnóstico Activo</p>
+            <p class="text-xs text-slate-400 text-center mb-6">Conexión Directa API (Sin CDN)</p>
             
             <div class="space-y-4">
                 <div>
@@ -25,14 +24,13 @@
                     <input type="password" id="password" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white" placeholder="••••••••">
                 </div>
                 <button type="button" id="btn-submit" class="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-2 rounded transition cursor-pointer">
-                    Probar Conexión e Iniciar Sesión
+                    Iniciar Sesión
                 </button>
             </div>
         </div>
 
-        <!-- CORTAFUEGOS / REGISTRO EN VIVO -->
-        <div class="bg-black/80 border border-slate-700 rounded-lg p-4 font-mono text-xs text-green-400 h-48 overflow-y-auto space-y-1" id="console-log">
-            <div>> Sistema cargando...</div>
+        <!-- CONSOLA DE DIAGNÓSTICO -->
+        <div class="bg-black/90 border border-slate-700 rounded-lg p-4 font-mono text-xs text-green-400 h-48 overflow-y-auto space-y-1" id="console-log">
         </div>
     </div>
 
@@ -49,11 +47,11 @@
             </div>
         </header>
 
-        <div class="flex-1 bg-slate-800/40 border border-slate-700 p-6 rounded-b-xl">
-            <h2 class="text-2xl font-bold mb-2">¡Conexión Exitosa!</h2>
-            <p class="text-slate-300 mb-4">El frontend en Cloudflare Pages se ha autenticado correctamente con Supabase PostgreSQL.</p>
+        <div class="flex-1 bg-slate-800/40 border border-slate-700 p-6 rounded-b-xl space-y-4">
+            <h2 class="text-2xl font-bold mb-2 text-emerald-400">¡Conexión Exitosa con Supabase!</h2>
+            <p class="text-slate-300">Has accedido correctamente al sistema de contabilidad.</p>
             <div class="p-4 bg-emerald-950/40 border border-emerald-500/30 rounded text-emerald-300 text-sm">
-                Siguiente paso: Cargar la estructura del Plan de Cuentas y Asientos Contables.
+                <strong>Siguiente paso:</strong> Crear la base de datos para el Plan de Cuentas y los Asientos Contables.
             </div>
         </div>
     </div>
@@ -73,27 +71,8 @@
             logger.scrollTop = logger.scrollHeight;
         }
 
-        // Capturar cualquier error no controlado
-        window.onerror = function(msg, url, line) {
-            log(`> ERROR NO CONTROLADO: ${msg} (Línea ${line})`, 'error');
-            return false;
-        };
-
-        window.addEventListener('unhandledrejection', function(event) {
-            log(`> ERROR DE PROMESA: ${event.reason.message || event.reason}`, 'error');
-        });
-
-        let supabase;
-        try {
-            if (window.supabase) {
-                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                log('> Cliente Supabase inicializado correctamente.');
-            } else {
-                log('> ERROR: La librería de Supabase no cargó desde la red.', 'error');
-            }
-        } catch(e) {
-            log('> ERROR al crear cliente Supabase: ' + e.message, 'error');
-        }
+        log('> Sistema JavaScript inicializado.');
+        log('> Listo para conectar con Supabase.');
 
         const loginView = document.getElementById('login-view');
         const dashboardView = document.getElementById('dashboard-view');
@@ -101,31 +80,21 @@
         const userEmailSpan = document.getElementById('user-email');
         const logoutBtn = document.getElementById('logout-btn');
 
-        async function checkSession() {
-            if (!supabase) return;
-            log('> Verificando si existe sesión activa...');
-            const { data: { session }, error } = await supabase.auth.getSession();
-            if (error) log('> Error al consultar sesión: ' + error.message, 'error');
-            if (session) {
-                log('> Sesión detectada para: ' + session.user.email, 'success');
-                showDashboard(session.user);
-            } else {
-                log('> Sin sesión activa. Ingrese clave y presione el botón.');
-            }
+        // Verificar si hay token guardado
+        const savedToken = localStorage.getItem('sb_access_token');
+        const savedEmail = localStorage.getItem('sb_user_email');
+        if (savedToken && savedEmail) {
+            log('> Sesión guardada encontrada para: ' + savedEmail, 'success');
+            showDashboard(savedEmail);
         }
 
-        function showDashboard(user) {
+        function showDashboard(email) {
             loginView.classList.add('hidden');
             dashboardView.classList.remove('hidden');
-            userEmailSpan.textContent = user.email;
+            userEmailSpan.textContent = email;
         }
 
         async function ejecutarLogin() {
-            if (!supabase) {
-                log('> ERROR: Supabase no está listo.', 'error');
-                return;
-            }
-
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
 
@@ -134,36 +103,50 @@
                 return;
             }
 
-            log('> Enviando credenciales a Supabase...');
+            log('> Contactando a Supabase Auth API...');
             btnSubmit.disabled = true;
-            btnSubmit.textContent = 'Verificando...';
+            btnSubmit.textContent = 'Autenticando...';
 
-            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            try {
+                const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
 
-            btnSubmit.disabled = false;
-            btnSubmit.textContent = 'Probar Conexión e Iniciar Sesión';
+                const data = await response.json();
 
-            if (error) {
-                log('> ERROR DE AUTENTICACIÓN: ' + error.message, 'error');
-            } else {
-                log('> ¡Autenticación EXITOSA!', 'success');
-                showDashboard(data.user);
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = 'Iniciar Sesión';
+
+                if (!response.ok) {
+                    log('> ERROR DE LOGIN: ' + (data.error_description || data.msg || data.message || 'Credenciales inválidas'), 'error');
+                } else {
+                    log('> ¡LOGIN EXITOSO!', 'success');
+                    localStorage.setItem('sb_access_token', data.access_token);
+                    localStorage.setItem('sb_user_email', data.user.email);
+                    showDashboard(data.user.email);
+                }
+            } catch (err) {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = 'Iniciar Sesión';
+                log('> ERROR DE RED: ' + err.message, 'error');
             }
         }
 
         btnSubmit.addEventListener('click', ejecutarLogin);
 
-        // Permitir presionar Enter en la contraseña
         document.getElementById('password').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') ejecutarLogin();
         });
 
-        logoutBtn.addEventListener('click', async () => {
-            if (supabase) await supabase.auth.signOut();
+        logoutBtn.addEventListener('click', () => {
+            localStorage.clear();
             location.reload();
         });
-
-        checkSession();
     </script>
 </body>
 </html>
