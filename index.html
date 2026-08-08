@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP Contable - Balances</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+
+    <!-- PANTALLA DE LOGIN -->
+    <div id="login-view" class="flex-1 flex items-center justify-center p-4">
+        <div class="bg-slate-800 p-8 rounded-xl shadow-2xl w-full max-w-md border border-slate-700">
+            <h1 class="text-2xl font-bold text-emerald-400 text-center mb-6">ERP Contable</h1>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Correo Electrónico</label>
+                    <input type="email" id="email" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-emerald-500" placeholder="renolibra@renolibra.com">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Contraseña</label>
+                    <input type="password" id="password" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-2 rounded transition">Iniciar Sesión</button>
+            </form>
+            <p id="auth-error" class="text-red-400 text-sm mt-4 text-center hidden"></p>
+        </div>
+    </div>
+
+    <!-- PANEL PRINCIPAL (DASHBOARD) -->
+    <div id="dashboard-view" class="hidden flex-1 flex flex-col">
+        <!-- Navegación Superior -->
+        <header class="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <span class="text-xl font-bold text-emerald-400">ERP Contable</span>
+                <span id="user-role-badge" class="px-2 py-0.5 text-xs rounded font-semibold bg-slate-700 text-slate-300">Cargando...</span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span id="user-email" class="text-sm text-slate-400"></span>
+                <button id="logout-btn" class="bg-red-600/80 hover:bg-red-600 text-xs px-3 py-1.5 rounded">Cerrar Sesión</button>
+            </div>
+        </header>
+
+        <!-- Contenido Principal -->
+        <div class="flex-1 flex flex-col md:flex-row">
+            <!-- Menú Lateral -->
+            <aside class="w-full md:w-64 bg-slate-800/50 border-r border-slate-700 p-4 space-y-2">
+                <button class="w-full text-left px-3 py-2 rounded bg-slate-700 text-emerald-400 font-medium">Balance General</button>
+                <button class="w-full text-left px-3 py-2 rounded hover:bg-slate-700 text-slate-300">Libro Mayor</button>
+                <button class="w-full text-left px-3 py-2 rounded hover:bg-slate-700 text-slate-300">Asientos Contables</button>
+                <button class="w-full text-left px-3 py-2 rounded hover:bg-slate-700 text-slate-300">Plan de Cuentas</button>
+                <!-- Sección visible solo para Admin -->
+                <div id="admin-only-menu" class="hidden pt-4 border-t border-slate-700">
+                    <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">Administración</span>
+                    <button class="w-full text-left px-3 py-2 rounded hover:bg-slate-700 text-amber-400">Gestión de Usuarios</button>
+                    <button class="w-full text-left px-3 py-2 rounded hover:bg-slate-700 text-amber-400">Configuración Fiscal</button>
+                </div>
+            </aside>
+
+            <!-- Área de Trabajo -->
+            <main class="flex-1 p-6">
+                <h2 class="text-2xl font-bold mb-4">Estado de Situación Financiera (Balance)</h2>
+                <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                    <p class="text-slate-400">Selecciona un período fiscal para generar el balance resumido.</p>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- LÓGICA JAVASCRIPT -->
+    <script>
+        // CONFIGURACIÓN DE SUPABASE INTEGRADA
+        const SUPABASE_URL = 'https://dkhvskyuwrinrlfyjahy.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRraHZza3l1d3JpbnJsZnlqYWh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMTk5MDIsImV4cCI6MjEwMTc5NTkwMn0.W7hpE2AqADgxZnMd2GygUMVYMIsV5kEzr8YxpQbMMzI';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Elementos del DOM
+        const loginView = document.getElementById('login-view');
+        const dashboardView = document.getElementById('dashboard-view');
+        const loginForm = document.getElementById('login-form');
+        const authError = document.getElementById('auth-error');
+        const userEmailSpan = document.getElementById('user-email');
+        const userRoleBadge = document.getElementById('user-role-badge');
+        const adminOnlyMenu = document.getElementById('admin-only-menu');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        // Manejo de Sesión
+        async function checkSession() {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                showDashboard(session.user);
+            } else {
+                showLogin();
+            }
+        }
+
+        async function showDashboard(user) {
+            loginView.classList.add('hidden');
+            dashboardView.classList.remove('hidden');
+            userEmailSpan.textContent = user.email;
+
+            // Consultar rol en la base de datos
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', user.id)
+                .single();
+
+            const role = profile ? profile.role : 'contador';
+            userRoleBadge.textContent = role.toUpperCase();
+            
+            if (role === 'admin') {
+                userRoleBadge.className = "px-2 py-0.5 text-xs rounded font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30";
+                adminOnlyMenu.classList.remove('hidden');
+            } else {
+                userRoleBadge.className = "px-2 py-0.5 text-xs rounded font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+                adminOnlyMenu.classList.add('hidden');
+            }
+        }
+
+        function showLogin() {
+            loginView.classList.remove('hidden');
+            dashboardView.classList.add('hidden');
+        }
+
+        // Evento Login
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            authError.classList.add('hidden');
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) {
+                authError.textContent = error.message;
+                authError.classList.remove('hidden');
+            } else {
+                showDashboard(data.user);
+            }
+        });
+
+        // Evento Logout
+        logoutBtn.addEventListener('click', async () => {
+            await supabase.auth.signOut();
+            showLogin();
+        });
+
+        // Inicializar
+        checkSession();
+    </script>
+</body>
+</html>
