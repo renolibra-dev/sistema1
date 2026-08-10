@@ -45,7 +45,7 @@
   <button type="button" id="btnScan" onclick="window.procesarComprobante()">1. Escanear e Identificar (IA)</button>
 
   <label style="margin-top: 15px;">Consola de diagnóstico (Estado en tiempo real):</label>
-  <div id="debugLog">Consola iniciada. Esperando acciones...</div>
+  <div id="debugLog">Consola lista. Selecciona un archivo y presiona Escanear.</div>
 
   <hr style="border-color: #333; margin: 20px 0;">
 
@@ -144,9 +144,13 @@
     return el ? el.value : '';
   }
 
+  // Parseo numérico corregido para formato argentino (coma como separador decimal)
   function parseNumber(val) {
-    if (!val) return 0;
-    var str = String(val).replace(/\./g, '').replace(',', '.');
+    if (val === null || val === undefined || val === '') return 0;
+    var str = String(val).trim();
+    if (str.includes(',')) {
+      str = str.replace(/\./g, '').replace(',', '.');
+    }
     var num = parseFloat(str);
     return isNaN(num) ? 0 : num;
   }
@@ -173,7 +177,6 @@
     });
   }
 
-  // Asignación directa a Window
   window.procesarComprobante = async function() {
     try {
       log("Iniciando escaneo IA...");
@@ -281,10 +284,9 @@
     }
   };
 
-  // Función de Guardado Global Explicitamente Asignada a Window
   window.guardarComprobante = async function() {
     try {
-      log("Clic detectado: Iniciando proceso de guardado...");
+      log("Iniciando guardado...");
 
       var btnSave = document.getElementById('btnSave');
 
@@ -304,7 +306,7 @@
         monto_total: parseNumber(getVal('monto_total'))
       };
 
-      log("Payload generado: Total = " + payload.monto_total);
+      log("Payload numérico correcto: Total = " + payload.monto_total);
 
       if (btnSave) btnSave.disabled = true;
       log("Enviando a /api/guardar...");
@@ -315,7 +317,7 @@
         body: JSON.stringify(payload)
       });
 
-      log("Respuesta del servidor /api/guardar. HTTP Status: " + response.status);
+      log("Respuesta /api/guardar HTTP Status: " + response.status);
 
       var responseText = await response.text();
       var resData;
@@ -334,7 +336,7 @@
         throw new Error(typeof resData.error === 'object' ? JSON.stringify(resData.error) : resData.error);
       }
 
-      log("¡ÉXITO! Comprobante guardado en la base de datos.");
+      log("¡ÉXITO! Comprobante guardado correctamente.");
       alert("Comprobante guardado con éxito.");
 
     } catch (err) {
@@ -345,7 +347,7 @@
     }
   };
 
-  log("Scripts y eventos globales listos.");
+  log("Sistema listo.");
 </script>
 
 </body>
