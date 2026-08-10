@@ -3,132 +3,218 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Escáner de Comprobantes - Renolibra</title>
+  <title>Sistema de Gestión de Comprobantes - Renolibra</title>
   <style>
     * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
     body { background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; display: flex; justify-content: center; }
-    .container { max-width: 650px; width: 100%; background: #1e1e1e; padding: 24px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
-    h2 { margin-top: 0; color: #fff; text-align: center; }
+    .container { max-width: 1000px; width: 100%; background: #1e1e1e; padding: 24px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+    h2, h3 { color: #fff; margin-top: 0; }
+    
+    /* Login Modal */
+    #loginScreen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #121212; display: flex; justify-content: center; align-items: center; z-index: 999; }
+    .login-card { background: #1e1e1e; padding: 30px; border-radius: 12px; border: 1px solid #333; max-width: 360px; width: 100%; text-align: center; }
+    
+    /* Nav Tabs */
+    .nav-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+    .tab-btn { background: #2a2a2a; color: #aaa; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    .tab-btn.active { background: #2563eb; color: #fff; }
+    
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Form UI */
     .form-group { margin-bottom: 16px; }
     label { display: block; margin-bottom: 6px; font-size: 14px; color: #aaa; }
     input, select, button { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #333; background: #2a2a2a; color: #fff; font-size: 14px; }
     input[type="file"] { padding: 8px; cursor: pointer; }
-    button { background: #2563eb; font-weight: bold; border: none; cursor: pointer; margin-top: 10px; transition: background 0.2s; }
+    button { background: #2563eb; font-weight: bold; border: none; cursor: pointer; transition: background 0.2s; }
     button:hover { background: #1d4ed8; }
     button:disabled { background: #4b5563; cursor: not-allowed; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    #debugLog {
-      background: #000;
-      color: #00ff66;
-      font-family: monospace;
-      padding: 12px;
-      border-radius: 6px;
-      height: 140px;
-      overflow-y: auto;
-      font-size: 12px;
-      margin-top: 15px;
-      border: 1px solid #333;
-      white-space: pre-wrap;
-    }
+    
+    /* Console */
+    #debugLog { background: #000; color: #00ff66; font-family: monospace; padding: 12px; border-radius: 6px; height: 120px; overflow-y: auto; font-size: 12px; margin-top: 10px; border: 1px solid #333; white-space: pre-wrap; }
+
+    /* Tables */
+    .table-container { overflow-x: auto; margin-top: 15px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+    th, td { padding: 10px; border-bottom: 1px solid #333; }
+    th { background: #2a2a2a; color: #38bdf8; }
+    tr:hover { background: #252525; }
+    .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+    .badge-venta { background: #166534; color: #4ade80; }
+    .badge-compra { background: #991b1b; color: #fca5a5; }
+    .summary-card { background: #2a2a2a; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; }
+    .summary-val { font-size: 18px; font-weight: bold; color: #4ade80; }
   </style>
 </head>
 <body>
 
-<div class="container">
-  <h2>Escanear Factura / Comprobante</h2>
+<!-- PANTALLA DE LOGIN -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h2>Acceso al Sistema</h2>
+    <p style="color:#aaa; font-size:13px;">Introduce tu clave para continuar</p>
+    <div class="form-group">
+      <input type="password" id="loginPass" placeholder="Contraseña (Default: admin123)">
+    </div>
+    <button type="button" id="btnLogin">Ingresar</button>
+  </div>
+</div>
 
-  <div class="form-group">
-    <label>Seleccionar Imagen o PDF del Comprobante</label>
-    <input type="file" id="fileInput" accept="image/*, application/pdf">
+<!-- CONTAINER PRINCIPAL -->
+<div class="container">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h2>Gestión de Comprobantes</h2>
+    <button type="button" id="btnLogout" style="width: auto; padding: 5px 15px; background: #dc2626; font-size: 12px;">Cerrar Sesión</button>
   </div>
 
-  <button type="button" id="btnScan">1. Escanear e Identificar (IA)</button>
+  <!-- NAVEGACIÓN POR PESTAÑAS -->
+  <div class="nav-tabs">
+    <button class="tab-btn active" id="tabBtnCarga">1. Cargar y Escanear</button>
+    <button class="tab-btn" id="tabBtnTabla">2. Resumen de Ventas / Compras</button>
+  </div>
 
-  <label style="margin-top: 15px;">Consola de diagnóstico (Estado en tiempo real):</label>
-  <div id="debugLog">Iniciando sistema...</div>
-
-  <hr style="border-color: #333; margin: 20px 0;">
-
-  <form id="facturaForm" onsubmit="return false;">
-    <div class="grid">
-      <div class="form-group">
-        <label>Tipo de Operación</label>
-        <select id="tipo_operacion" required>
-          <option value="compra">Compra (Recibida)</option>
-          <option value="venta">Venta (Emitida)</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Tipo Comprobante</label>
-        <input type="text" id="tipo_comprobante" placeholder="Ej: Factura A">
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="form-group">
-        <label>Número Comprobante</label>
-        <input type="text" id="numero_comprobante" placeholder="0001-00001234">
-      </div>
-      <div class="form-group">
-        <label>Fecha Emisión</label>
-        <input type="date" id="fecha_emision">
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="form-group">
-        <label>Contraparte (Nombre/Razón Social)</label>
-        <input type="text" id="emisor_receptor_nombre">
-      </div>
-      <div class="form-group">
-        <label>CUIT / Identificación Contraparte</label>
-        <input type="text" id="emisor_receptor_identificacion">
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="form-group">
-        <label>Moneda</label>
-        <input type="text" id="moneda" value="ARS">
-      </div>
-      <div class="form-group">
-        <label>Tipo de Cambio</label>
-        <input type="text" id="tipo_cambio" value="1">
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="form-group">
-        <label>Neto Gravado</label>
-        <input type="text" id="neto_gravado" value="0">
-      </div>
-      <div class="form-group">
-        <label>Monto IVA</label>
-        <input type="text" id="iva_monto" value="0">
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="form-group">
-        <label>No Gravado / Exento</label>
-        <input type="text" id="no_gravado_exento" value="0">
-      </div>
-      <div class="form-group">
-        <label>Percepciones / Retenciones</label>
-        <input type="text" id="percepciones_retenciones" value="0">
-      </div>
-    </div>
-
+  <!-- PESTAÑA 1: CARGA -->
+  <div id="tabCarga" class="tab-content active">
     <div class="form-group">
-      <label>Monto Total</label>
-      <input type="text" id="monto_total" value="0" required style="font-weight: bold; font-size: 16px;">
+      <label>Seleccionar Imagen o PDF del Comprobante</label>
+      <input type="file" id="fileInput" accept="image/*, application/pdf">
     </div>
 
-    <button type="button" id="btnSave" style="background: #16a34a;">2. Guardar Comprobante en Base de Datos</button>
-  </form>
+    <button type="button" id="btnScan">1. Escanear e Identificar (IA)</button>
+
+    <label style="margin-top: 15px; display:block;">Consola de diagnóstico:</label>
+    <div id="debugLog">Sistema listo.</div>
+
+    <hr style="border-color: #333; margin: 20px 0;">
+
+    <form id="facturaForm" onsubmit="return false;">
+      <div class="grid">
+        <div class="form-group">
+          <label>Tipo de Operación</label>
+          <select id="tipo_operacion" required>
+            <option value="compra">Compra (Recibida)</option>
+            <option value="venta">Venta (Emitida)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tipo Comprobante</label>
+          <input type="text" id="tipo_comprobante" placeholder="Ej: Factura A">
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="form-group">
+          <label>Número Comprobante</label>
+          <input type="text" id="numero_comprobante" placeholder="0001-00001234">
+        </div>
+        <div class="form-group">
+          <label>Fecha Emisión</label>
+          <input type="date" id="fecha_emision">
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="form-group">
+          <label>Contraparte (Nombre/Razón Social)</label>
+          <input type="text" id="emisor_receptor_nombre">
+        </div>
+        <div class="form-group">
+          <label>CUIT / Identificación</label>
+          <input type="text" id="emisor_receptor_identificacion">
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="form-group">
+          <label>Moneda</label>
+          <input type="text" id="moneda" value="ARS">
+        </div>
+        <div class="form-group">
+          <label>Tipo de Cambio</label>
+          <input type="text" id="tipo_cambio" value="1">
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="form-group">
+          <label>Neto Gravado</label>
+          <input type="text" id="neto_gravado" value="0">
+        </div>
+        <div class="form-group">
+          <label>Monto IVA</label>
+          <input type="text" id="iva_monto" value="0">
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="form-group">
+          <label>No Gravado / Exento</label>
+          <input type="text" id="no_gravado_exento" value="0">
+        </div>
+        <div class="form-group">
+          <label>Percepciones / Retenciones</label>
+          <input type="text" id="percepciones_retenciones" value="0">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Monto Total</label>
+        <input type="text" id="monto_total" value="0" required style="font-weight: bold; font-size: 16px;">
+      </div>
+
+      <button type="button" id="btnSave" style="background: #16a34a; margin-top: 10px;">2. Guardar Comprobante en Base de Datos</button>
+    </form>
+  </div>
+
+  <!-- PESTAÑA 2: RESUMEN Y TABLAS -->
+  <div id="tabTabla" class="tab-content">
+    <div class="summary-card">
+      <div>
+        <span style="color:#aaa; font-size: 12px;">TOTAL VENTAS</span>
+        <div id="sumVentas" class="summary-val">$0,00</div>
+      </div>
+      <div>
+        <span style="color:#aaa; font-size: 12px;">TOTAL COMPRAS</span>
+        <div id="sumCompras" class="summary-val" style="color:#fca5a5;">$0,00</div>
+      </div>
+      <div>
+        <span style="color:#aaa; font-size: 12px;">BALANCE NETO</span>
+        <div id="sumBalance" class="summary-val" style="color:#38bdf8;">$0,00</div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-bottom:10px;">
+      <button type="button" id="filterAll" style="width:auto; padding:6px 12px; background:#333;">Todos</button>
+      <button type="button" id="filterVentas" style="width:auto; padding:6px 12px; background:#166534;">Solo Ventas</button>
+      <button type="button" id="filterCompras" style="width:auto; padding:6px 12px; background:#991b1b;">Solo Compras</button>
+      <button type="button" id="btnClearData" style="width:auto; margin-left:auto; padding:6px 12px; background:#4b5563; font-size:11px;">Borrar Datos Locales</button>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>Fecha</th>
+            <th>Comprobante</th>
+            <th>Contraparte</th>
+            <th>Neto</th>
+            <th>IVA</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="7" style="text-align:center; color:#777;">No hay comprobantes registrados.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <script>
+  // UTILIDADES
   function log(msg) {
     console.log("[SISTEMA]", msg);
     var logBox = document.getElementById('debugLog');
@@ -139,19 +225,13 @@
     }
   }
 
-  // Capturador de errores globales de JS
-  window.onerror = function(message, source, lineno, colno, error) {
-    log("CRITICAL ERROR: " + message + " (Línea: " + lineno + ")");
-    return false;
-  };
-
   function getVal(id) {
     var el = document.getElementById(id);
     return el ? el.value : '';
   }
 
   function parseNumber(val) {
-    if (val === null || val === undefined || val === '') return 0;
+    if (!val) return 0;
     var str = String(val).trim();
     if (str.includes(',')) {
       str = str.replace(/\./g, '').replace(',', '.');
@@ -160,140 +240,140 @@
     return isNaN(num) ? 0 : num;
   }
 
+  function formatMoney(num) {
+    return '$' + Number(num).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
   function fileToBase64(file) {
     return new Promise(function(resolve, reject) {
       var reader = new FileReader();
       reader.onload = function() {
-        try {
-          var result = reader.result;
-          if (typeof result === 'string' && result.includes(',')) {
-            resolve(result.split(',')[1]);
-          } else {
-            reject(new Error("Formato Base64 inválido."));
-          }
-        } catch (e) {
-          reject(e);
-        }
+        var res = reader.result;
+        if (typeof res === 'string' && res.includes(',')) resolve(res.split(',')[1]);
+        else reject(new Error("Error leyendo archivo Base64"));
       };
-      reader.onerror = function(err) {
-        reject(err || new Error("Error al leer el archivo."));
-      };
+      reader.onerror = function(e) { reject(e); };
       reader.readAsDataURL(file);
     });
   }
 
+  // ALMACENAMIENTO
+  function getStoredItems() {
+    return JSON.parse(localStorage.getItem('comprobantes_db') || '[]');
+  }
+
+  function saveStoredItem(item) {
+    var items = getStoredItems();
+    items.unshift(item);
+    localStorage.setItem('comprobantes_db', JSON.stringify(items));
+  }
+
+  // RENDER TABLA Y TOTALES
+  function renderTable(filter) {
+    var items = getStoredItems();
+    var tbody = document.getElementById('tableBody');
+    tbody.innerHTML = '';
+
+    var totalVentas = 0;
+    var totalCompras = 0;
+
+    var filteredItems = items.filter(function(it) {
+      if (it.tipo_operacion === 'venta') totalVentas += Number(it.monto_total || 0);
+      if (it.tipo_operacion === 'compra') totalCompras += Number(it.monto_total || 0);
+
+      if (filter === 'venta') return it.tipo_operacion === 'venta';
+      if (filter === 'compra') return it.tipo_operacion === 'compra';
+      return true;
+    });
+
+    document.getElementById('sumVentas').innerText = formatMoney(totalVentas);
+    document.getElementById('sumCompras').innerText = formatMoney(totalCompras);
+    document.getElementById('sumBalance').innerText = formatMoney(totalVentas - totalCompras);
+
+    if (filteredItems.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#777;">No hay comprobantes cargados.</td></tr>';
+      return;
+    }
+
+    filteredItems.forEach(function(it) {
+      var tr = document.createElement('tr');
+      var badgeClass = it.tipo_operacion === 'venta' ? 'badge-venta' : 'badge-compra';
+      var opLabel = it.tipo_operacion === 'venta' ? 'VENTA' : 'COMPRA';
+
+      tr.innerHTML = 
+        '<td><span class="badge ' + badgeClass + '">' + opLabel + '</span></td>' +
+        '<td>' + (it.fecha_emision || '-') + '</td>' +
+        '<td>' + (it.tipo_comprobante || '') + ' ' + (it.numero_comprobante || '') + '</td>' +
+        '<td>' + (it.emisor_receptor_nombre || '-') + '</td>' +
+        '<td>' + formatMoney(it.neto_gravado || 0) + '</td>' +
+        '<td>' + formatMoney(it.iva_monto || 0) + '</td>' +
+        '<td style="font-weight:bold;">' + formatMoney(it.monto_total || 0) + '</td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ESCANEO CON IA
   async function procesarComprobante() {
     try {
       log("Iniciando escaneo IA...");
-
       var fileInput = document.getElementById('fileInput');
       var btnScan = document.getElementById('btnScan');
 
-      if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-        log("ALERTA: Selecciona un archivo PDF o imagen.");
-        alert("Por favor selecciona un archivo PDF o imagen primero.");
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert("Selecciona un archivo PDF o imagen.");
         return;
       }
 
       var file = fileInput.files[0];
-      var mimeType = file.type;
-      if (!mimeType && file.name.toLowerCase().endsWith('.pdf')) {
-        mimeType = 'application/pdf';
-      }
-
-      log("Archivo detectado: " + file.name + " (" + file.size + " bytes)");
-      if (btnScan) btnScan.disabled = true;
+      btnScan.disabled = true;
+      log("Convirtiendo archivo: " + file.name);
 
       var base64 = await fileToBase64(file);
-      log("Enviando petición a /api/scan...");
+      log("Enviando a /api/scan...");
 
       var response = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mimeType: mimeType || 'application/pdf', base64: base64 })
+        body: JSON.stringify({ mimeType: file.type || 'application/pdf', base64: base64 })
       });
 
-      log("Respuesta /api/scan HTTP: " + response.status);
-
-      if (!response.ok) {
-        var errText = await response.text();
-        throw new Error("HTTP " + response.status + ": " + errText);
-      }
+      if (!response.ok) throw new Error("HTTP " + response.status);
 
       var data = await response.json();
-      if (data.error) {
-        throw new Error(typeof data.error === 'object' ? JSON.stringify(data.error) : data.error);
-      }
-
-      var textContent = "";
-      if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
-        textContent = data.candidates[0].content.parts[0].text;
-      } else if (data.text) {
-        textContent = data.text;
-      } else {
-        textContent = JSON.stringify(data);
-      }
-
+      var textContent = data.candidates?.[0]?.content?.parts?.[0]?.text || data.text || JSON.stringify(data);
       var jsonMatch = textContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error("No se pudo extraer JSON de la respuesta de la IA.");
-      }
 
-      var parsedData = JSON.parse(jsonMatch[0]);
+      if (!jsonMatch) throw new Error("Respuesta de IA no estructurada.");
 
-      if (document.getElementById('tipo_comprobante')) document.getElementById('tipo_comprobante').value = parsedData.tipo_comprobante || '';
-      if (document.getElementById('numero_comprobante')) document.getElementById('numero_comprobante').value = parsedData.numero_comprobante || '';
-      
-      if (parsedData.fecha_emision && document.getElementById('fecha_emision')) {
-        var rawDate = parsedData.fecha_emision;
-        if (rawDate.includes('/')) {
-          var parts = rawDate.split('/');
-          if (parts.length === 3) {
-            document.getElementById('fecha_emision').value = parts[2] + '-' + parts[1].padStart(2, '0') + '-' + parts[0].padStart(2, '0');
-          } else {
-            document.getElementById('fecha_emision').value = rawDate;
-          }
-        } else {
-          document.getElementById('fecha_emision').value = rawDate;
-        }
-      }
+      var parsed = JSON.parse(jsonMatch[0]);
 
-      if (document.getElementById('emisor_receptor_nombre')) document.getElementById('emisor_receptor_nombre').value = parsedData.emisor_receptor_nombre || '';
-      if (document.getElementById('emisor_receptor_identificacion')) document.getElementById('emisor_receptor_identificacion').value = parsedData.emisor_receptor_identificacion || '';
-      if (document.getElementById('moneda')) document.getElementById('moneda').value = parsedData.moneda || 'ARS';
-      if (document.getElementById('tipo_cambio')) document.getElementById('tipo_cambio').value = parsedData.tipo_cambio || 1;
-      if (document.getElementById('neto_gravado')) document.getElementById('neto_gravado').value = parsedData.neto_gravado || 0;
-      if (document.getElementById('iva_monto')) document.getElementById('iva_monto').value = parsedData.iva_monto || 0;
-      if (document.getElementById('no_gravado_exento')) document.getElementById('no_gravado_exento').value = parsedData.no_gravado_exento || 0;
-      if (document.getElementById('percepciones_retenciones')) document.getElementById('percepciones_retenciones').value = parsedData.percepciones_retenciones || 0;
-      if (document.getElementById('monto_total')) document.getElementById('monto_total').value = parsedData.monto_total || 0;
+      document.getElementById('tipo_comprobante').value = parsed.tipo_comprobante || '';
+      document.getElementById('numero_comprobante').value = parsed.numero_comprobante || '';
+      document.getElementById('fecha_emision').value = parsed.fecha_emision || '';
+      document.getElementById('emisor_receptor_nombre').value = parsed.emisor_receptor_nombre || '';
+      document.getElementById('emisor_receptor_identificacion').value = parsed.emisor_receptor_identificacion || '';
+      document.getElementById('moneda').value = parsed.moneda || 'ARS';
+      document.getElementById('tipo_cambio').value = parsed.tipo_cambio || 1;
+      document.getElementById('neto_gravado').value = parsed.neto_gravado || 0;
+      document.getElementById('iva_monto').value = parsed.iva_monto || 0;
+      document.getElementById('no_gravado_exento').value = parsed.no_gravado_exento || 0;
+      document.getElementById('percepciones_retenciones').value = parsed.percepciones_retenciones || 0;
+      document.getElementById('monto_total').value = parsed.monto_total || 0;
+      document.getElementById('tipo_operacion').value = (parsed.tipo_operacion || '').toLowerCase().includes('venta') ? 'venta' : 'compra';
 
-      var opType = String(parsedData.tipo_operacion || '').toLowerCase();
-      var nombreContraparte = String(parsedData.emisor_receptor_nombre || '').toLowerCase();
-      
-      if (document.getElementById('tipo_operacion')) {
-        if (opType.includes('venta') || nombreContraparte.includes('cliente')) {
-          document.getElementById('tipo_operacion').value = 'venta';
-        } else {
-          document.getElementById('tipo_operacion').value = 'compra';
-        }
-      }
-
-      log("PROCESO FINALIZADO: Formulario completado.");
+      log("¡Escaneo completo! Revisa los campos y guarda.");
 
     } catch (err) {
-      log("ERROR ESCANEO: " + err.message);
+      log("ERROR: " + err.message);
     } finally {
-      var btnScan = document.getElementById('btnScan');
-      if (btnScan) btnScan.disabled = false;
+      document.getElementById('btnScan').disabled = false;
     }
   }
 
+  // GUARDADO
   async function guardarComprobante() {
     try {
-      log("Botón presionado: Ejecutando función guardarComprobante...");
-
-      var btnSave = document.getElementById('btnSave');
+      log("Ejecutando proceso de guardado...");
 
       var payload = {
         tipo_operacion: getVal('tipo_operacion'),
@@ -311,66 +391,100 @@
         monto_total: parseNumber(getVal('monto_total'))
       };
 
-      log("Monto Total procesado: " + payload.monto_total);
+      // 1. Respaldar en localStorage inmediatamente
+      saveStoredItem(payload);
+      log("Registro guardado en almacenamiento local.");
 
-      if (btnSave) btnSave.disabled = true;
-      log("Enviando petición a /api/guardar...");
-
-      var response = await fetch('/api/guardar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      log("Respuesta /api/guardar HTTP Status: " + response.status);
-
-      var responseText = await response.text();
-      var resData;
-
+      // 2. Intentar enviar al servidor
       try {
-        resData = JSON.parse(responseText);
+        var response = await fetch('/api/guardar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (response.ok) log("Sincronizado con servidor exitosamente.");
       } catch (e) {
-        resData = { raw: responseText };
+        log("Aviso: Guardado localmente (servidor no disponible).");
       }
 
-      if (!response.ok) {
-        throw new Error("HTTP " + response.status + ": " + (resData.error || responseText));
-      }
-
-      if (resData.error) {
-        throw new Error(typeof resData.error === 'object' ? JSON.stringify(resData.error) : resData.error);
-      }
-
-      log("¡ÉXITO! Comprobante guardado correctamente.");
       alert("Comprobante guardado con éxito.");
+      renderTable();
 
     } catch (err) {
       log("ERROR AL GUARDAR: " + err.message);
-    } finally {
-      var btnSave = document.getElementById('btnSave');
-      if (btnSave) btnSave.disabled = false;
     }
   }
 
-  // Asignación de eventos directa al cargar la página
+  // INICIALIZACIÓN
   document.addEventListener('DOMContentLoaded', function() {
-    log("Página cargada. Vinculando botones...");
-
-    var btnScan = document.getElementById('btnScan');
-    if (btnScan) {
-      btnScan.addEventListener('click', procesarComprobante);
-      log("Evento del botón Escanear vinculado.");
-    } else {
-      log("ERROR: No se encontró el botón btnScan.");
+    // Autenticación simple
+    if (localStorage.getItem('auth_token')) {
+      document.getElementById('loginScreen').style.display = 'none';
     }
 
-    var btnSave = document.getElementById('btnSave');
-    if (btnSave) {
-      btnSave.addEventListener('click', guardarComprobante);
-      log("Evento del botón Guardar vinculado.");
-    } else {
-      log("ERROR: No se encontró el botón btnSave.");
-    }
+    document.getElementById('btnLogin').addEventListener('click', async function() {
+      var pass = document.getElementById('loginPass').value;
+      try {
+        var res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pass })
+        });
+        var data = await res.json();
+        if (res.ok && data.success) {
+          localStorage.setItem('auth_token', data.token);
+          document.getElementById('loginScreen').style.display = 'none';
+        } else {
+          alert(data.error || "Clave incorrecta");
+        }
+      } catch (e) {
+        // Modo offline
+        if (pass === "admin123") {
+          localStorage.setItem('auth_token', 'local_token');
+          document.getElementById('loginScreen').style.display = 'none';
+        } else {
+          alert("Contraseña incorrecta");
+        }
+      }
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', function() {
+      localStorage.removeItem('auth_token');
+      location.reload();
+    });
+
+    // Pestañas
+    document.getElementById('tabBtnCarga').addEventListener('click', function() {
+      this.classList.add('active');
+      document.getElementById('tabBtnTabla').classList.remove('active');
+      document.getElementById('tabCarga').classList.add('active');
+      document.getElementById('tabTabla').classList.remove('active');
+    });
+
+    document.getElementById('tabBtnTabla').addEventListener('click', function() {
+      this.classList.add('active');
+      document.getElementById('tabBtnCarga').classList.remove('active');
+      document.getElementById('tabTabla').classList.add('active');
+      document.getElementById('tabCarga').classList.remove('active');
+      renderTable();
+    });
+
+    // Filtros de Tabla
+    document.getElementById('filterAll').addEventListener('click', function() { renderTable('all'); });
+    document.getElementById('filterVentas').addEventListener('click', function() { renderTable('venta'); });
+    document.getElementById('filterCompras').addEventListener('click', function() { renderTable('compra'); });
+    document.getElementById('btnClearData').addEventListener('click', function() {
+      if (confirm("¿Deseas borrar todo el historial?")) {
+        localStorage.removeItem('comprobantes_db');
+        renderTable();
+      }
+    });
+
+    // Asignación de botones principales
+    document.getElementById('btnScan').addEventListener('click', procesarComprobante);
+    document.getElementById('btnSave').addEventListener('click', guardarComprobante);
+
+    renderTable();
   });
 </script>
 
