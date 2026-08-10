@@ -93,38 +93,38 @@
       </div>
       <div class="form-group">
         <label>Tipo de Cambio</label>
-        <input type="number" step="0.01" id="tipo_cambio" value="1">
+        <input type="text" id="tipo_cambio" value="1">
       </div>
     </div>
 
     <div class="grid">
       <div class="form-group">
         <label>Neto Gravado</label>
-        <input type="number" step="0.01" id="neto_gravado" value="0">
+        <input type="text" id="neto_gravado" value="0">
       </div>
       <div class="form-group">
         <label>Monto IVA</label>
-        <input type="number" step="0.01" id="iva_monto" value="0">
+        <input type="text" id="iva_monto" value="0">
       </div>
     </div>
 
     <div class="grid">
       <div class="form-group">
         <label>No Gravado / Exento</label>
-        <input type="number" step="0.01" id="no_gravado_exento" value="0">
+        <input type="text" id="no_gravado_exento" value="0">
       </div>
       <div class="form-group">
         <label>Percepciones / Retenciones</label>
-        <input type="number" step="0.01" id="percepciones_retenciones" value="0">
+        <input type="text" id="percepciones_retenciones" value="0">
       </div>
     </div>
 
     <div class="form-group">
       <label>Monto Total</label>
-      <input type="number" step="0.01" id="monto_total" value="0" required style="font-weight: bold; font-size: 16px;">
+      <input type="text" id="monto_total" value="0" required style="font-weight: bold; font-size: 16px;">
     </div>
 
-    <button type="button" id="btnSave" style="background: #16a34a;">2. Guardar Comprobante en Base de Datos</button>
+    <button type="button" id="btnSave" onclick="guardarComprobante()" style="background: #16a34a;">2. Guardar Comprobante en Base de Datos</button>
   </form>
 </div>
 
@@ -137,6 +137,13 @@
       logBox.innerText += "\n[" + timestamp + "] " + msg;
       logBox.scrollTop = logBox.scrollHeight;
     }
+  }
+
+  function parseNumber(val) {
+    if (!val) return 0;
+    var str = String(val).replace(/\./g, '').replace(',', '.');
+    var num = parseFloat(str);
+    return isNaN(num) ? 0 : num;
   }
 
   function fileToBase64(file) {
@@ -155,7 +162,7 @@
         }
       };
       reader.onerror = function(err) {
-        reject(err || new Error("Error al leer el archivo en el navegador."));
+        reject(err || new Error("Error al leer el archivo."));
       };
       reader.readAsDataURL(file);
     });
@@ -180,7 +187,6 @@
     }
 
     log("Archivo detectado: " + file.name + " (" + file.size + " bytes)");
-    
     if (btnScan) btnScan.disabled = true;
     log("Convirtiendo a Base64...");
 
@@ -221,14 +227,30 @@
 
       var jsonMatch = textContent.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        throw new Error("La respuesta no contiene un objeto JSON válido.");
+        throw new Error("La respuesta no contiene un JSON válido.");
       }
 
       var parsedData = JSON.parse(jsonMatch[0]);
 
       document.getElementById('tipo_comprobante').value = parsedData.tipo_comprobante || '';
       document.getElementById('numero_comprobante').value = parsedData.numero_comprobante || '';
-      document.getElementById('fecha_emision').value = parsedData.fecha_emision || '';
+      
+      // Formatear fecha para el campo date de HTML (YYYY-MM-DD)
+      if (parsedData.fecha_emision) {
+        var rawDate = parsedData.fecha_emision;
+        if (rawDate.includes('/')) {
+          var parts = rawDate.split('/');
+          if (parts.length === 3) {
+            var formatted = parts[2] + '-' + parts[1].padStart(2, '0') + '-' + parts[0].padStart(2, '0');
+            document.getElementById('fecha_emision').value = formatted;
+          } else {
+            document.getElementById('fecha_emision').value = rawDate;
+          }
+        } else {
+          document.getElementById('fecha_emision').value = rawDate;
+        }
+      }
+
       document.getElementById('emisor_receptor_nombre').value = parsedData.emisor_receptor_nombre || '';
       document.getElementById('emisor_receptor_identificacion').value = parsedData.emisor_receptor_identificacion || '';
       document.getElementById('moneda').value = parsedData.moneda || 'ARS';
@@ -257,10 +279,73 @@
     }
   }
 
+  async function guardarComprobante() {
+    log("Iniciando proceso de guardado...");
+
+    var btnSave = document.getElementById('btnSave');
+
+    var payload = {
+      tipo_operacion: document.getElementById('tipo_operacion').value,
+      tipo_comprobante: document.getElementById('tipo_comprobante').value,
+      numero_comprobante: document.getElementById('numero_comprobante').value,
+      fecha_emision: document.getElementById('fecha_emision').value,
+      emisor_receptor_nombre: document.getElementById('emisor_receptor_nombre').value,
+      emisor_receptor_identificacion: document.getElementById('emisor_receptor_identificacion').value,
+      moneda: document.getElementById('moneda').value,
+      tipo_cambio: parseNumber(document.getElementById('tipo_cambio').value),
+      neto_gravado: parseNumber(document.getElementById('neto_gravado').value),
+      iva_monto: parseNumber(document.getElementById('iva_monto').value),
+      no_gravado_exento: parseNumber(document.getElementById('no_gravado_exento').value),
+      percepciones_retenciones: parseNumber(document.getElementById('percepciones_retenciones').value),
+      monto_total: parseNumber(document.getElementById('monto_total').value)
+    };
+
+    if (!payload.monto_total || payload.monto_total <= 0) {
+      log("ALERTA: El monto total debe ser mayor a 0.");
+      alert("Por favor verifica el Monto Total antes de guardar.");
+      return;
+    }
+
+    if (btnSave) btnSave.disabled = true;
+    log("Enviando datos al servidor (/api/guardar)...");
+
+    try {
+      var response = await fetch('/api/guardar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      log("Respuesta de guardado. Estado HTTP: " + response.status);
+
+      if (!response.ok) {
+        var errText = await response.text();
+        throw new Error("HTTP " + response.status + ": " + errText);
+      }
+
+      var resData = await response.json();
+
+      if (resData.error) {
+        throw new Error(typeof resData.error === 'object' ? JSON.stringify(resData.error) : resData.error);
+      }
+
+      log("¡ÉXITO! Comprobante guardado correctamente en la base de datos.");
+      alert("Comprobante guardado con éxito.");
+
+    } catch (err) {
+      log("ERROR AL GUARDAR: " + err.message);
+    } finally {
+      if (btnSave) btnSave.disabled = false;
+    }
+  }
+
   function inicializar() {
     log("Script cargado y listo.");
-    var btn = document.getElementById('btnScan');
-    if (btn) btn.onclick = procesarComprobante;
+    var btnScan = document.getElementById('btnScan');
+    if (btnScan) btnScan.onclick = procesarComprobante;
+
+    var btnSave = document.getElementById('btnSave');
+    if (btnSave) btnSave.onclick = guardarComprobante;
   }
 
   if (document.readyState === 'loading') {
