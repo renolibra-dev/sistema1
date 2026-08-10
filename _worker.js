@@ -12,14 +12,14 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // RUTA 1: Login Simple
+    // RUTA API 1: LOGIN
     if (url.pathname === '/api/login' && request.method === 'POST') {
       try {
         const { password } = await request.json();
-        const validPassword = env.APP_PASSWORD || "admin123"; // Clave por defecto o Variable de Entorno
+        const validPassword = env.APP_PASSWORD || "admin123";
 
         if (password === validPassword) {
-          return new Response(JSON.stringify({ success: true, token: "session_active_token" }), {
+          return new Response(JSON.stringify({ success: true, token: "session_token" }), {
             status: 200,
             headers: { 'Content-Type': 'application/json', ...corsHeaders }
           });
@@ -34,14 +34,14 @@ export default {
       }
     }
 
-    // RUTA 2: Escaneo con Gemini IA
+    // RUTA API 2: ESCANEO IA
     if (url.pathname === '/api/scan' && request.method === 'POST') {
       try {
         const body = await request.json();
         const apiKey = env.GEMINI_API_KEY;
 
         if (!apiKey) {
-          return new Response(JSON.stringify({ error: "Falta la variable GEMINI_API_KEY en Cloudflare." }), {
+          return new Response(JSON.stringify({ error: "Falta la variable GEMINI_API_KEY." }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders }
           });
@@ -50,18 +50,18 @@ export default {
         const promptText = `Analiza este comprobante y devuelve UNICAMENTE un JSON estricto sin markdown:
 {
   "tipo_operacion": "compra" o "venta",
-  "tipo_comprobante": "Factura A", "Factura B", "Nota de Credito", etc.,
+  "tipo_comprobante": "Factura A",
   "numero_comprobante": "string",
   "fecha_emision": "YYYY-MM-DD",
   "emisor_receptor_nombre": "string",
   "emisor_receptor_identificacion": "string",
-  "moneda": "ARS" o "USD",
-  "tipo_cambio": number,
-  "neto_gravado": number,
-  "iva_monto": number,
-  "no_gravado_exento": number,
-  "percepciones_retenciones": number,
-  "monto_total": number
+  "moneda": "ARS",
+  "tipo_cambio": 1,
+  "neto_gravado": 0,
+  "iva_monto": 0,
+  "no_gravado_exento": 0,
+  "percepciones_retenciones": 0,
+  "monto_total": 0
 }`;
 
         const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
@@ -88,14 +88,12 @@ export default {
       }
     }
 
-    // RUTA 3: Guardar Comprobante
+    // RUTA API 3: GUARDAR
     if (url.pathname === '/api/guardar' && request.method === 'POST') {
       try {
         const payload = await request.json();
         payload.id = Date.now().toString();
-        payload.creado_el = new Date().toISOString();
 
-        // Integración opcional con Supabase si las variables existen
         if (env.SUPABASE_URL && env.SUPABASE_KEY) {
           await fetch(`${env.SUPABASE_URL}/rest/v1/comprobantes`, {
             method: 'POST',
@@ -118,9 +116,7 @@ export default {
       }
     }
 
-    return new Response(JSON.stringify({ error: "Ruta no encontrada" }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders }
-    });
+    // Si no es una ruta API, deja que Cloudflare sirva los archivos estáticos (index.html)
+    return env.ASSETS.fetch(request);
   }
 };
