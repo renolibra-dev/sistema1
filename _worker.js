@@ -5,27 +5,49 @@ export default {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     };
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // RUTA 1: Escaneo con IA Gemini
+    // RUTA 1: Login Simple
+    if (url.pathname === '/api/login' && request.method === 'POST') {
+      try {
+        const { password } = await request.json();
+        const validPassword = env.APP_PASSWORD || "admin123"; // Clave por defecto o Variable de Entorno
+
+        if (password === validPassword) {
+          return new Response(JSON.stringify({ success: true, token: "session_active_token" }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        } else {
+          return new Response(JSON.stringify({ error: "Contraseña incorrecta" }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
+      }
+    }
+
+    // RUTA 2: Escaneo con Gemini IA
     if (url.pathname === '/api/scan' && request.method === 'POST') {
       try {
         const body = await request.json();
         const apiKey = env.GEMINI_API_KEY;
 
         if (!apiKey) {
-          return new Response(JSON.stringify({ error: "Falta la variable GEMINI_API_KEY en las variables de entorno de Cloudflare." }), {
+          return new Response(JSON.stringify({ error: "Falta la variable GEMINI_API_KEY en Cloudflare." }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders }
           });
         }
 
-        const promptText = `Analiza este comprobante/factura y devuelve UNICAMENTE un JSON estricto con los siguientes campos sin formato Markdown:
+        const promptText = `Analiza este comprobante y devuelve UNICAMENTE un JSON estricto sin markdown:
 {
   "tipo_operacion": "compra" o "venta",
   "tipo_comprobante": "Factura A", "Factura B", "Nota de Credito", etc.,
@@ -62,48 +84,37 @@ export default {
         });
 
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        });
+        return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
       }
     }
 
-    // RUTA 2: Guardado en Base de Datos / Supabase
+    // RUTA 3: Guardar Comprobante
     if (url.pathname === '/api/guardar' && request.method === 'POST') {
       try {
         const payload = await request.json();
+        payload.id = Date.now().toString();
+        payload.creado_el = new Date().toISOString();
 
-        // Si tienes variables de Supabase configuradas en Cloudflare Worker
+        // Integración opcional con Supabase si las variables existen
         if (env.SUPABASE_URL && env.SUPABASE_KEY) {
-          const supabaseUrl = `${env.SUPABASE_URL}/rest/v1/comprobantes`;
-          const supabaseRes = await fetch(supabaseUrl, {
+          await fetch(`${env.SUPABASE_URL}/rest/v1/comprobantes`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'apikey': env.SUPABASE_KEY,
-              'Authorization': `Bearer ${env.SUPABASE_KEY}`,
-              'Prefer': 'return=minimal'
+              'Authorization': `Bearer ${env.SUPABASE_KEY}`
             },
             body: JSON.stringify(payload)
           });
-
-          if (!supabaseRes.ok) {
-            const errText = await supabaseRes.text();
-            throw new Error(`Supabase Error (${supabaseRes.status}): ${errText}`);
-          }
         }
 
-        return new Response(JSON.stringify({ success: true, message: "Comprobante guardado con éxito.", data: payload }), {
+        return new Response(JSON.stringify({ success: true, item: payload }), {
           status: 200,
           headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
 
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        });
+        return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
       }
     }
 
