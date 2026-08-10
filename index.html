@@ -18,7 +18,6 @@
     button:hover { background: #1d4ed8; }
     button:disabled { background: #4b5563; cursor: not-allowed; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    /* Consola de diagnóstico en vivo */
     #debugLog {
       background: #000;
       color: #00ff66;
@@ -44,16 +43,15 @@
     <input type="file" id="fileInput" accept="image/*, application/pdf">
   </div>
 
-  <button type="button" id="btnScan">1. Escanear e Identificar (IA)</button>
+  <!-- Vinculación directa mediante onclick -->
+  <button type="button" id="btnScan" onclick="procesarComprobante()">1. Escanear e Identificar (IA)</button>
 
-  <!-- Monitor de Estado y Depuración -->
   <label style="margin-top: 15px;">Consola de diagnóstico (Estado en tiempo real):</label>
   <div id="debugLog">Esperando acción... Haz clic en 'Escanear' para iniciar.</div>
 
   <hr style="border-color: #333; margin: 20px 0;">
 
-  <!-- Formulario de datos -->
-  <form id="facturaForm">
+  <form id="facturaForm" onsubmit="guardarEnSupabase(event)">
     <div class="grid">
       <div class="form-group">
         <label>Tipo de Operación</label>
@@ -133,9 +131,9 @@
 </div>
 
 <script>
-  // Función para imprimir mensajes en pantalla inmediatamente
   function log(msg) {
     const logBox = document.getElementById('debugLog');
+    if (!logBox) return;
     const timestamp = new Date().toLocaleTimeString();
     logBox.innerText += `\n[${timestamp}] ${msg}`;
     logBox.scrollTop = logBox.scrollHeight;
@@ -149,52 +147,49 @@
     });
   }
 
-  // Evento asignado mediante función directa onclick/addEventListener
-  window.addEventListener('DOMContentLoaded', () => {
-    log("Página cargada correctamente. Lista para operar.");
+  // Función principal global llamada directamente por el botón
+  async function procesarComprobante() {
+    log("Botón presionado. Verificando archivo...");
 
+    const fileInput = document.getElementById('fileInput');
     const btnScan = document.getElementById('btnScan');
-    btnScan.addEventListener('click', async function() {
-      log("Botón presionado. Verificando archivo...");
 
-      const fileInput = document.getElementById('fileInput');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+      log("ERROR: No se seleccionó ningún archivo.");
+      alert("Por favor selecciona un archivo PDF o una imagen primero.");
+      return;
+    }
 
-      if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-        log("ERROR: No seleccionaste ningún archivo PDF o Imagen.");
-        alert("Por favor selecciona un archivo PDF o una Imagen primero.");
-        return;
+    const file = fileInput.files[0];
+    let mimeType = file.type;
+    
+    if (!mimeType && file.name.toLowerCase().endsWith('.pdf')) {
+      mimeType = 'application/pdf';
+    }
+
+    log(`Archivo seleccionado: ${file.name} (${file.size} bytes, Tipo: ${mimeType || 'desconocido'})`);
+
+    btnScan.disabled = true;
+    log("Convirtiendo archivo a Base64...");
+
+    try {
+      const base64 = await fileToBase64(file);
+      log("Base64 listo. Enviando a /api/scan...");
+
+      const response = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mimeType: mimeType || 'application/pdf', base64: base64 })
+      });
+
+      log(`Servidor respondió. Estado HTTP: ${response.status}`);
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(typeof data.error === 'object' ? JSON.stringify(data.error) : data.error);
       }
 
-      const file = fileInput.files[0];
-      let mimeType = file.type;
-      
-      if (!mimeType && file.name.toLowerCase().endsWith('.pdf')) {
-        mimeType = 'application/pdf';
-      }
+      log("Respuesta recibida correctamente de Gemini.");
 
-      log(`Archivo detectado: ${file.name} (${file.size} bytes, Tipo: ${mimeType || 'desconocido'})`);
-
-      btnScan.disabled = true;
-      log("Convirtiendo archivo a Base64...");
-
-      try {
-        const base64 = await fileToBase64(file);
-        log("Base64 generado con éxito. Enviando petición a /api/scan...");
-
-        const response = await fetch('/api/scan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mimeType: mimeType || 'application/pdf', base64: base64 })
-        });
-
-        log(`Respuesta del servidor recibida (Status: ${response.status})`);
-        const data = await response.json();
-
-        if (data.error) {
-          throw new Error(typeof data.error === 'object' ? JSON.stringify(data.error) : data.error);
-        }
-
-        log("Datos JSON devueltos por Gemini correctamente.");
-
-        let rawContent = data.candidates[0].content.parts[0].text;
-        rawContent = rawContent.replace(/```json/g, '').replace(/
+      let rawContent = data.candidates[0].content.parts[0].text;
+      rawContent = rawContent.replace(/```json/g, '').replace(/
