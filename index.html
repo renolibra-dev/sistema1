@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Escáner de Comprobantes - Renolibra</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
     body { background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; display: flex; justify-content: center; }
@@ -43,15 +42,14 @@
     <input type="file" id="fileInput" accept="image/*, application/pdf">
   </div>
 
-  <!-- Vinculación directa mediante onclick -->
-  <button type="button" id="btnScan" onclick="procesarComprobante()">1. Escanear e Identificar (IA)</button>
+  <button type="button" id="btnScan">1. Escanear e Identificar (IA)</button>
 
   <label style="margin-top: 15px;">Consola de diagnóstico (Estado en tiempo real):</label>
-  <div id="debugLog">Esperando acción... Haz clic en 'Escanear' para iniciar.</div>
+  <div id="debugLog">Cargando sistema...</div>
 
   <hr style="border-color: #333; margin: 20px 0;">
 
-  <form id="facturaForm" onsubmit="guardarEnSupabase(event)">
+  <form id="facturaForm">
     <div class="grid">
       <div class="form-group">
         <label>Tipo de Operación</label>
@@ -126,7 +124,7 @@
       <input type="number" step="0.01" id="monto_total" value="0" required style="font-weight: bold; font-size: 16px;">
     </div>
 
-    <button type="submit" id="btnSave" style="background: #16a34a;">2. Guardar Comprobante en Base de Datos</button>
+    <button type="button" id="btnSave" style="background: #16a34a;">2. Guardar Comprobante en Base de Datos</button>
   </form>
 </div>
 
@@ -135,7 +133,7 @@
     const logBox = document.getElementById('debugLog');
     if (!logBox) return;
     const timestamp = new Date().toLocaleTimeString();
-    logBox.innerText += `\n[${timestamp}] ${msg}`;
+    logBox.innerText += "\n[" + timestamp + "] " + msg;
     logBox.scrollTop = logBox.scrollHeight;
   }
 
@@ -147,49 +145,53 @@
     });
   }
 
-  // Función principal global llamada directamente por el botón
-  async function procesarComprobante() {
-    log("Botón presionado. Verificando archivo...");
+  // Confirmar la vinculación inmediata al cargar el DOM
+  window.onload = function() {
+    const logBox = document.getElementById('debugLog');
+    logBox.innerText = "[" + new Date().toLocaleTimeString() + "] JavaScript activo. Selecciona un PDF o imagen y haz clic en Escanear.";
 
-    const fileInput = document.getElementById('fileInput');
-    const btnScan = document.getElementById('btnScan');
+    document.getElementById('btnScan').onclick = async function() {
+      log("Botón de escanear presionado.");
 
-    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-      log("ERROR: No se seleccionó ningún archivo.");
-      alert("Por favor selecciona un archivo PDF o una imagen primero.");
-      return;
-    }
+      const fileInput = document.getElementById('fileInput');
+      const btnScan = document.getElementById('btnScan');
 
-    const file = fileInput.files[0];
-    let mimeType = file.type;
-    
-    if (!mimeType && file.name.toLowerCase().endsWith('.pdf')) {
-      mimeType = 'application/pdf';
-    }
-
-    log(`Archivo seleccionado: ${file.name} (${file.size} bytes, Tipo: ${mimeType || 'desconocido'})`);
-
-    btnScan.disabled = true;
-    log("Convirtiendo archivo a Base64...");
-
-    try {
-      const base64 = await fileToBase64(file);
-      log("Base64 listo. Enviando a /api/scan...");
-
-      const response = await fetch('/api/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mimeType: mimeType || 'application/pdf', base64: base64 })
-      });
-
-      log(`Servidor respondió. Estado HTTP: ${response.status}`);
-      const data = await response.json();
-
-      if (data.error) {
-        throw new Error(typeof data.error === 'object' ? JSON.stringify(data.error) : data.error);
+      if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        log("ALERTA: Debes seleccionar un archivo primero.");
+        alert("Por favor selecciona un archivo PDF o imagen primero.");
+        return;
       }
 
-      log("Respuesta recibida correctamente de Gemini.");
+      const file = fileInput.files[0];
+      let mimeType = file.type;
+      
+      if (!mimeType && file.name.toLowerCase().endsWith('.pdf')) {
+        mimeType = 'application/pdf';
+      }
 
-      let rawContent = data.candidates[0].content.parts[0].text;
-      rawContent = rawContent.replace(/```json/g, '').replace(/
+      log("Archivo: " + file.name + " (" + file.size + " bytes, Tipo: " + (mimeType || 'desconocido') + ")");
+
+      btnScan.disabled = true;
+      log("Generando Base64...");
+
+      try {
+        const base64 = await fileToBase64(file);
+        log("Enviando petición a /api/scan...");
+
+        const response = await fetch('/api/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mimeType: mimeType || 'application/pdf', base64: base64 })
+        });
+
+        log("Respuesta de /api/scan recibida (HTTP Status: " + response.status + ")");
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(typeof data.error === 'object' ? JSON.stringify(data.error) : data.error);
+        }
+
+        log("Lectura de IA completada con éxito.");
+
+        let rawContent = data.candidates[0].content.parts[0].text;
+        rawContent = rawContent.replace(/```json/g, '').replace(/
