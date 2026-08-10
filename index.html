@@ -23,7 +23,7 @@
       font-family: monospace;
       padding: 12px;
       border-radius: 6px;
-      height: 120px;
+      height: 140px;
       overflow-y: auto;
       font-size: 12px;
       margin-top: 15px;
@@ -45,11 +45,11 @@
   <button type="button" id="btnScan" onclick="procesarComprobante()">1. Escanear e Identificar (IA)</button>
 
   <label style="margin-top: 15px;">Consola de diagnóstico (Estado en tiempo real):</label>
-  <div id="debugLog">Iniciando scripts...</div>
+  <div id="debugLog">Consola lista. Selecciona un archivo y presiona Escanear.</div>
 
   <hr style="border-color: #333; margin: 20px 0;">
 
-  <form id="facturaForm">
+  <form id="facturaForm" onsubmit="event.preventDefault();">
     <div class="grid">
       <div class="form-group">
         <label>Tipo de Operación</label>
@@ -130,30 +130,45 @@
 
 <script>
   function log(msg) {
+    console.log("[SISTEMA]", msg);
     var logBox = document.getElementById('debugLog');
-    if (!logBox) return;
-    var timestamp = new Date().toLocaleTimeString();
-    logBox.innerText += "\n[" + timestamp + "] " + msg;
-    logBox.scrollTop = logBox.scrollHeight;
+    if (logBox) {
+      var timestamp = new Date().toLocaleTimeString();
+      logBox.innerText += "\n[" + timestamp + "] " + msg;
+      logBox.scrollTop = logBox.scrollHeight;
+    }
   }
 
   function fileToBase64(file) {
     return new Promise(function(resolve, reject) {
       var reader = new FileReader();
-      reader.onload = function() { resolve(reader.result.split(',')[1]); };
-      reader.onerror = function(error) { reject(error); };
+      reader.onload = function() {
+        try {
+          var result = reader.result;
+          if (typeof result === 'string' && result.includes(',')) {
+            resolve(result.split(',')[1]);
+          } else {
+            reject(new Error("No se pudo obtener el formato Base64 del archivo."));
+          }
+        } catch (e) {
+          reject(e);
+        }
+      };
+      reader.onerror = function(err) {
+        reject(err || new Error("Error al leer el archivo en el navegador."));
+      };
+      reader.readAsDataURL(file);
     });
   }
 
-  // Asignación directa a window
-  window.procesarComprobante = async function() {
-    log("¡Botón 'Escanear' cliqueado!");
+  async function procesarComprobante() {
+    log("Iniciando escaneo...");
 
     var fileInput = document.getElementById('fileInput');
     var btnScan = document.getElementById('btnScan');
 
     if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-      log("ALERTA: No hay ningún archivo seleccionado.");
+      log("ERROR: No seleccionaste ningún archivo.");
       alert("Por favor selecciona un archivo PDF o imagen primero.");
       return;
     }
@@ -164,13 +179,14 @@
       mimeType = 'application/pdf';
     }
 
-    log("Archivo preparado: " + file.name + " (" + file.size + " bytes)");
-    btnScan.disabled = true;
-    log("Transformando archivo...");
+    log("Archivo detectado: " + file.name + " (" + file.size + " bytes)");
+    
+    if (btnScan) btnScan.disabled = true;
+    log("Convirtiendo a Base64...");
 
     try {
       var base64 = await fileToBase64(file);
-      log("Enviando petición a /api/scan...");
+      log("Enviando a /api/scan...");
 
       var response = await fetch('/api/scan', {
         method: 'POST',
@@ -178,14 +194,81 @@
         body: JSON.stringify({ mimeType: mimeType || 'application/pdf', base64: base64 })
       });
 
-      log("Respuesta recibida HTTP status: " + response.status);
+      log("Respuesta del servidor. Estado HTTP: " + response.status);
+
+      if (!response.ok) {
+        var errText = await response.text();
+        throw new Error("HTTP " + response.status + ": " + errText);
+      }
+
       var data = await response.json();
 
       if (data.error) {
-        throw new Error(typeof data.error === 'object' ? JSON.stringify(data.error) : data.error);
+        var errMsg = typeof data.error === 'object' ? JSON.stringify(data.error) : data.error;
+        throw new Error(errMsg);
       }
 
-      log("IA procesó la respuesta.");
+      var textContent = "";
+      if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
+        textContent = data.candidates[0].content.parts[0].text;
+      } else if (data.text) {
+        textContent = data.text;
+      } else if (typeof data === 'string') {
+        textContent = data;
+      } else {
+        textContent = JSON.stringify(data);
+      }
 
-      var rawContent = data.candidates[0].content.parts[0].text;
-      rawContent = rawContent.replace(/```json/g, '').replace(/
+      var jsonMatch = textContent.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("La respuesta no contiene un objeto JSON válido.");
+      }
+
+      var parsedData = JSON.parse(jsonMatch[0]);
+
+      document.getElementById('tipo_comprobante').value = parsedData.tipo_comprobante || '';
+      document.getElementById('numero_comprobante').value = parsedData.numero_comprobante || '';
+      document.getElementById('fecha_emision').value = parsedData.fecha_emision || '';
+      document.getElementById('emisor_receptor_nombre').value = parsedData.emisor_receptor_nombre || '';
+      document.getElementById('emisor_receptor_identificacion').value = parsedData.emisor_receptor_identificacion || '';
+      document.getElementById('moneda').value = parsedData.moneda || 'ARS';
+      document.getElementById('tipo_cambio').value = parsedData.tipo_cambio || 1;
+      document.getElementById('neto_gravado').value = parsedData.neto_gravado || 0;
+      document.getElementById('iva_monto').value = parsedData.iva_monto || 0;
+      document.getElementById('no_gravado_exento').value = parsedData.no_gravado_exento || 0;
+      document.getElementById('percepciones_retenciones').value = parsedData.percepciones_retenciones || 0;
+      document.getElementById('monto_total').value = parsedData.monto_total || 0;
+
+      var opType = String(parsedData.tipo_operacion || '').toLowerCase();
+      var nombreContraparte = String(parsedData.emisor_receptor_nombre || '').toLowerCase();
+      
+      if (opType.includes('venta') || nombreContraparte.includes('cliente')) {
+        document.getElementById('tipo_operacion').value = 'venta';
+      } else {
+        document.getElementById('tipo_operacion').value = 'compra';
+      }
+
+      log("PROCESO FINALIZADO: Formulario completado.");
+
+    } catch (err) {
+      log("ERROR: " + err.message);
+    } finally {
+      if (btnScan) btnScan.disabled = false;
+    }
+  }
+
+  function inicializar() {
+    log("Script cargado y listo.");
+    var btn = document.getElementById('btnScan');
+    if (btn) btn.onclick = procesarComprobante;
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', inicializar);
+  } else {
+    inicializar();
+  }
+</script>
+
+</body>
+</html>
