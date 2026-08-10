@@ -42,10 +42,10 @@
     <input type="file" id="fileInput" accept="image/*, application/pdf">
   </div>
 
-  <button type="button" id="btnScan" onclick="window.procesarComprobante()">1. Escanear e Identificar (IA)</button>
+  <button type="button" id="btnScan">1. Escanear e Identificar (IA)</button>
 
   <label style="margin-top: 15px;">Consola de diagnóstico (Estado en tiempo real):</label>
-  <div id="debugLog">Consola lista. Selecciona un archivo y presiona Escanear.</div>
+  <div id="debugLog">Iniciando sistema...</div>
 
   <hr style="border-color: #333; margin: 20px 0;">
 
@@ -124,7 +124,7 @@
       <input type="text" id="monto_total" value="0" required style="font-weight: bold; font-size: 16px;">
     </div>
 
-    <button type="button" id="btnSave" onclick="window.guardarComprobante()" style="background: #16a34a;">2. Guardar Comprobante en Base de Datos</button>
+    <button type="button" id="btnSave" style="background: #16a34a;">2. Guardar Comprobante en Base de Datos</button>
   </form>
 </div>
 
@@ -139,12 +139,17 @@
     }
   }
 
+  // Capturador de errores globales de JS
+  window.onerror = function(message, source, lineno, colno, error) {
+    log("CRITICAL ERROR: " + message + " (Línea: " + lineno + ")");
+    return false;
+  };
+
   function getVal(id) {
     var el = document.getElementById(id);
     return el ? el.value : '';
   }
 
-  // Parseo numérico corregido para formato argentino (coma como separador decimal)
   function parseNumber(val) {
     if (val === null || val === undefined || val === '') return 0;
     var str = String(val).trim();
@@ -177,7 +182,7 @@
     });
   }
 
-  window.procesarComprobante = async function() {
+  async function procesarComprobante() {
     try {
       log("Iniciando escaneo IA...");
 
@@ -282,11 +287,11 @@
       var btnScan = document.getElementById('btnScan');
       if (btnScan) btnScan.disabled = false;
     }
-  };
+  }
 
-  window.guardarComprobante = async function() {
+  async function guardarComprobante() {
     try {
-      log("Iniciando guardado...");
+      log("Botón presionado: Ejecutando función guardarComprobante...");
 
       var btnSave = document.getElementById('btnSave');
 
@@ -306,10 +311,10 @@
         monto_total: parseNumber(getVal('monto_total'))
       };
 
-      log("Payload numérico correcto: Total = " + payload.monto_total);
+      log("Monto Total procesado: " + payload.monto_total);
 
       if (btnSave) btnSave.disabled = true;
-      log("Enviando a /api/guardar...");
+      log("Enviando petición a /api/guardar...");
 
       var response = await fetch('/api/guardar', {
         method: 'POST',
@@ -345,9 +350,28 @@
       var btnSave = document.getElementById('btnSave');
       if (btnSave) btnSave.disabled = false;
     }
-  };
+  }
 
-  log("Sistema listo.");
+  // Asignación de eventos directa al cargar la página
+  document.addEventListener('DOMContentLoaded', function() {
+    log("Página cargada. Vinculando botones...");
+
+    var btnScan = document.getElementById('btnScan');
+    if (btnScan) {
+      btnScan.addEventListener('click', procesarComprobante);
+      log("Evento del botón Escanear vinculado.");
+    } else {
+      log("ERROR: No se encontró el botón btnScan.");
+    }
+
+    var btnSave = document.getElementById('btnSave');
+    if (btnSave) {
+      btnSave.addEventListener('click', guardarComprobante);
+      log("Evento del botón Guardar vinculado.");
+    } else {
+      log("ERROR: No se encontró el botón btnSave.");
+    }
+  });
 </script>
 
 </body>
