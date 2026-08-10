@@ -14,9 +14,32 @@ export default {
           });
         }
 
-        const promptText = 'Analiza la imagen de esta factura y extrae un JSON estricto sin markdown con los campos: tipo_operacion (compra/venta), tipo_comprobante, numero_comprobante, fecha_emision (YYYY-MM-DD), emisor_receptor_nombre, emisor_receptor_identificacion, moneda, tipo_cambio (numero), neto_gravado (numero), iva_monto (numero), no_gravado_exento (numero), percepciones_retenciones (numero), monto_total (numero)';
+        const promptText = `Analiza la imagen de esta factura y extrae un JSON estricto sin bloques de código ni markdown.
 
-        // Usando el alias dinámico 'gemini-flash-latest'
+Reglas estrictas de clasificación:
+1. 'tipo_operacion': 
+   - Si 'Renolibra' (o la razón social propia) figura como EMISOR/VENDEDOR de la factura, asigna "venta".
+   - Si 'Renolibra' figura como RECEPTOR/CLIENTE/DESTINATARIO de la factura, asigna "compra" (factura recibida).
+2. 'emisor_receptor_nombre': Nombre de la contraparte (si es venta, indica el cliente; si es compra, indica el proveedor).
+3. 'emisor_receptor_identificacion': CUIT/NIT/RUC de la contraparte.
+
+Campos requeridos en el JSON:
+{
+  "tipo_operacion": "venta" o "compra",
+  "tipo_comprobante": "Factura A, B, C, etc.",
+  "numero_comprobante": "string",
+  "fecha_emision": "YYYY-MM-DD",
+  "emisor_receptor_nombre": "string",
+  "emisor_receptor_identificacion": "string",
+  "moneda": "ARS, USD, etc.",
+  "tipo_cambio": numero,
+  "neto_gravado": numero,
+  "iva_monto": numero,
+  "no_gravado_exento": numero,
+  "percepciones_retenciones": numero,
+  "monto_total": numero
+}`;
+
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
