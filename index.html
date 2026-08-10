@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Escaner de Comprobantes - Renolibra</title>
+  <title>Escáner de Comprobantes - Renolibra</title>
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -31,8 +31,9 @@
   <h2>Escanear Factura / Comprobante</h2>
 
   <div class="form-group">
-    <label>Seleccionar Imagen del Comprobante</label>
-    <input type="file" id="fileInput" accept="image/*">
+    <label>Seleccionar Imagen o PDF del Comprobante</label>
+    <!-- Acepta imágenes y archivos PDF -->
+    <input type="file" id="fileInput" accept="image/*, application/pdf">
   </div>
 
   <button id="btnScan" onclick="procesarComprobante()">Escanear e Identificar (IA)</button>
@@ -128,14 +129,12 @@
   
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  // Helper para mostrar mensajes en pantalla
   function setStatus(msg, type) {
     const box = document.getElementById('statusBox');
     box.innerText = msg;
     box.className = `status ${type}`;
   }
 
-  // Convertir archivo a base64
   function fileToBase64(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -144,19 +143,25 @@
     });
   }
 
-  // 1. Procesar con la IA
   async function procesarComprobante() {
     const fileInput = document.getElementById('fileInput');
     const btnScan = document.getElementById('btnScan');
 
     if (!fileInput.files.length) {
-      alert("Por favor selecciona una imagen de comprobante primero.");
+      alert("Por favor selecciona una imagen o archivo PDF de comprobante primero.");
       return;
     }
 
     const file = fileInput.files[0];
+    
+    // Detectar tipo MIME (si el sistema operativo no lo detecta en PDF, asignarlo por extensión)
+    let mimeType = file.type;
+    if (!mimeType && file.name.endsWith('.pdf')) {
+      mimeType = 'application/pdf';
+    }
+
     btnScan.disabled = true;
-    setStatus("Analizando comprobante con IA...", "info");
+    setStatus("Analizando documento con IA...", "info");
 
     try {
       const base64 = await fileToBase64(file);
@@ -164,7 +169,7 @@
       const response = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mimeType: file.type, base64: base64 })
+        body: JSON.stringify({ mimeType: mimeType, base64: base64 })
       });
 
       const data = await response.json();
@@ -173,92 +178,5 @@
         throw new Error(data.error);
       }
 
-      // Extraer JSON generado por la IA
       let rawContent = data.candidates[0].content.parts[0].text;
-      rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsedData = JSON.parse(rawContent);
-
-      // Cargar datos extraídos en los campos del formulario
-      document.getElementById('tipo_comprobante').value = parsedData.tipo_comprobante || '';
-      document.getElementById('numero_comprobante').value = parsedData.numero_comprobante || '';
-      document.getElementById('fecha_emision').value = parsedData.fecha_emision || '';
-      document.getElementById('emisor_receptor_nombre').value = parsedData.emisor_receptor_nombre || '';
-      document.getElementById('emisor_receptor_identificacion').value = parsedData.emisor_receptor_identificacion || '';
-      document.getElementById('moneda').value = parsedData.moneda || 'ARS';
-      document.getElementById('tipo_cambio').value = parsedData.tipo_cambio || 1;
-      document.getElementById('neto_gravado').value = parsedData.neto_gravado || 0;
-      document.getElementById('iva_monto').value = parsedData.iva_monto || 0;
-      document.getElementById('no_gravado_exento').value = parsedData.no_gravado_exento || 0;
-      document.getElementById('percepciones_retenciones').value = parsedData.percepciones_retenciones || 0;
-      document.getElementById('monto_total').value = parsedData.monto_total || 0;
-
-      // LÓGICA FRONTEND: Clasificación estricta de Venta vs Compra para Renolibra
-      let opType = (parsedData.tipo_operacion || '').toLowerCase();
-      const nombreContraparte = (parsedData.emisor_receptor_nombre || '').toLowerCase();
-      
-      if (opType.includes('venta') || nombreContraparte.includes('cliente')) {
-        document.getElementById('tipo_operacion').value = 'venta';
-      } else {
-        document.getElementById('tipo_operacion').value = 'compra';
-      }
-
-      setStatus("¡Comprobante analizado correctamente! Revisa los datos y guarda.", "success");
-
-    } catch (err) {
-      console.error(err);
-      setStatus(`Error procesando la imagen: ${err.message}`, "error");
-    } finally {
-      btnScan.disabled = false;
-    }
-  }
-
-  // 2. Guardar en Supabase
-  async function guardarEnSupabase(e) {
-    e.preventDefault();
-    const btnSave = document.getElementById('btnSave');
-    btnSave.disabled = true;
-    setStatus("Guardando en la base de datos...", "info");
-
-    try {
-      // Obtener el usuario autenticado actual (si existe sesión)
-      const { data: { user } } = await supabase.auth.getUser();
-
-      // Construir el objeto limpio sanitizado para Supabase
-      const payload = {
-        tipo_operacion: document.getElementById('tipo_operacion').value,
-        tipo_comprobante: document.getElementById('tipo_comprobante').value || null,
-        numero_comprobante: document.getElementById('numero_comprobante').value || null,
-        fecha_emision: document.getElementById('fecha_emision').value || null,
-        emisor_receptor_nombre: document.getElementById('emisor_receptor_nombre').value || null,
-        emisor_receptor_identificacion: document.getElementById('emisor_receptor_identificacion').value || null,
-        moneda: document.getElementById('moneda').value || 'ARS',
-        tipo_cambio: parseFloat(document.getElementById('tipo_cambio').value) || 1,
-        neto_gravado: parseFloat(document.getElementById('neto_gravado').value) || 0,
-        iva_monto: parseFloat(document.getElementById('iva_monto').value) || 0,
-        no_gravado_exento: parseFloat(document.getElementById('no_gravado_exento').value) || 0,
-        percepciones_retenciones: parseFloat(document.getElementById('percepciones_retenciones').value) || 0,
-        monto_total: parseFloat(document.getElementById('monto_total').value) || 0,
-        created_by: user ? user.id : null
-      };
-
-      const { data, error } = await supabase
-        .from('comprobantes')
-        .insert([payload]);
-
-      if (error) throw error;
-
-      setStatus("¡Comprobante guardado con éxito en Supabase!", "success");
-      document.getElementById('facturaForm').reset();
-      document.getElementById('fileInput').value = '';
-
-    } catch (err) {
-      console.error(err);
-      setStatus(`Error al guardar en la base de datos: ${err.message}`, "error");
-    } finally {
-      btnSave.disabled = false;
-    }
-  }
-</script>
-
-</body>
-</html>
+      rawContent = rawContent.replace(/```json/g, '').replace(/
