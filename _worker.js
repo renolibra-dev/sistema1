@@ -328,7 +328,9 @@ const HTML_FRONTEND = `<!DOCTYPE html>
       var data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Error HTTP " + response.status);
+        var errDetail = data.error;
+        if (typeof errDetail === 'object') errDetail = JSON.stringify(errDetail);
+        throw new Error(errDetail || "Error HTTP " + response.status);
       }
 
       var textContent = data.candidates?.[0]?.content?.parts?.[0]?.text || data.text || JSON.stringify(data);
@@ -518,7 +520,7 @@ export default {
       }
     }
 
-    // 3. RUTA DE ESCANEO /api/scan (AQUÍ SE USA LA GEMINI_API_KEY DE CLOUDFLARE)
+    // 3. RUTA DE ESCANEO /api/scan
     if (url.pathname === '/api/scan' && request.method === 'POST') {
       try {
         const body = await request.json();
@@ -555,8 +557,8 @@ export default {
   "monto_total": 0
 }`;
 
-        // Consulta a Gemini usando la API key
-        const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        // Consulta a Gemini usando gemini-1.5-flash
+        const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -577,8 +579,20 @@ export default {
         });
 
         const data = await geminiResponse.json();
+
+        if (!geminiResponse.ok) {
+          let errMsg = "Error en la API de Gemini";
+          if (data.error) {
+            errMsg = typeof data.error === 'object' ? (data.error.message || JSON.stringify(data.error)) : data.error;
+          }
+          return new Response(JSON.stringify({ error: errMsg }), {
+            status: geminiResponse.status,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
         return new Response(JSON.stringify(data), {
-          status: geminiResponse.status,
+          status: 200,
           headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
 
