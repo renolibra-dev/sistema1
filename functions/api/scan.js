@@ -9,6 +9,8 @@ export async function onRequestPost(context) {
 
   try {
     const body = await request.json();
+    
+    // Obtiene la API Key configurada en las variables de entorno de Cloudflare Pages
     const apiKey = env.GEMINI_API_KEY;
 
     if (!apiKey) {
@@ -17,6 +19,13 @@ export async function onRequestPost(context) {
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
+
+    // Limpieza de cadena base64 previa al envío a Gemini
+    let cleanBase64 = body.base64 || "";
+    if (cleanBase64.includes(',')) {
+      cleanBase64 = cleanBase64.split(',')[1];
+    }
+    cleanBase64 = cleanBase64.replace(/[\r\n\s]/g, '');
 
     const promptText = `Analiza este comprobante y devuelve UNICAMENTE un JSON estricto sin markdown:
 {
@@ -35,19 +44,19 @@ export async function onRequestPost(context) {
   "monto_total": 0
 }`;
 
+    // Llamada a la API de Gemini
     const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [
           {
-            role: 'user',
             parts: [
               { text: promptText },
               {
                 inline_data: {
                   mime_type: body.mimeType || 'application/pdf',
-                  data: body.base64
+                  data: cleanBase64
                 }
               }
             ]
